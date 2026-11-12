@@ -163,11 +163,17 @@ func TestRepeatedFieldKeyCancelsEarlierHooks(t *testing.T) {
 }
 
 // renderEntries prints v with every pointer followed, a nil pointer as
-// nil, map entries sorted, and a gapHook as the text its hook received,
-// so a hooked result and the result goccy keeps for the same input with
-// string in place of gapHook print alike exactly when they agree.
+// nil, map entries sorted, a gapHook as the text its hook received, and
+// the value an interface holds after its type, so a hooked result and
+// the result goccy keeps for the same input with string in place of
+// gapHook print alike exactly when they agree.
 func renderEntries(v reflect.Value) string {
 	switch v.Kind() {
+	case reflect.Interface:
+		if v.IsNil() {
+			return "nil"
+		}
+		return v.Elem().Type().String() + "(" + renderEntries(v.Elem()) + ")"
 	case reflect.Pointer:
 		if v.IsNil() {
 			return "nil"
@@ -187,7 +193,14 @@ func renderEntries(v reflect.Value) string {
 		if h, ok := v.Interface().(gapHook); ok {
 			return strings.TrimPrefix(h.Val, "hook:")
 		}
-		return fmt.Sprintf("%+v", v.Interface())
+		fields := make([]string, v.NumField())
+		for i := range fields {
+			if !v.Type().Field(i).IsExported() {
+				return fmt.Sprintf("%+v", v.Interface())
+			}
+			fields[i] = v.Type().Field(i).Name + ":" + renderEntries(v.Field(i))
+		}
+		return "{" + strings.Join(fields, " ") + "}"
 	default:
 		return fmt.Sprintf("%v", v.Interface())
 	}
@@ -305,9 +318,9 @@ func TestPointerKeysWithEqualValuesAreRefused(t *testing.T) {
 }
 
 // TestReportedRepeatOfAPointerKeyIsRefused checks that a key written
-// twice in a map with pointer keys, which OnDuplicateKey folds into one
-// pair before the decode sees it, is refused when the map has a hook
-// under it, since goccy keeps an entry for each pair of such a map.
+// twice in a map with pointer keys, which OnDuplicateKey reports, is
+// refused when a hook lies under either pair, since goccy keeps an entry
+// for each pair, and the two keys point to equal values.
 func TestReportedRepeatOfAPointerKeyIsRefused(t *testing.T) {
 	report := yaml.DecodeOptions{OnDuplicateKey: func(yaml.DuplicateKey) {}}
 	ints := func() any { return new(map[*int]gapHook) }
@@ -318,18 +331,35 @@ func TestReportedRepeatOfAPointerKeyIsRefused(t *testing.T) {
 		line     int
 	}{
 		{"a repeat", "1: alpha\n1: bravo\n", ints, "map[*int]yaml_test.gapHook", 2},
-		{"a repeat with no hook site", "1: ~\n1: ~\n", ints, "map[*int]yaml_test.gapHook", 2},
-		{"a third repeat", "1: alpha\n1: bravo\n1: charlie\n", ints, "map[*int]yaml_test.gapHook", 3},
+		{"a third repeat", "1: alpha\n1: bravo\n1: charlie\n", ints, "map[*int]yaml_test.gapHook", 2},
 		{"explicit keys", "? 1\n: alpha\n? 1\n: bravo\n", ints, "map[*int]yaml_test.gapHook", 3},
 		{"an inner map", "x:\n  1: alpha\n  1: bravo\n", func() any { return new(map[*string]map[*int]gapHook) }, "map[*int]yaml_test.gapHook", 3},
 	} {
 		gapHookCalls = 0
 		err := yaml.UnmarshalWith([]byte(tc.in), tc.target(), report)
-		checkRefusal(t, tc.name, tc.in, err, "a key repeats in a map of Go type "+tc.typ+", which has an UnmarshalYAML method under it", tc.line)
+		checkPointerKeyRefusal(t, tc.name, tc.in, err, tc.typ, tc.line)
 		if gapHookCalls != 0 {
 			t.Errorf("%s: the hook ran %d times", tc.name, gapHookCalls)
 		}
 	}
+}
+
+// TestReportedRepeatOfAPointerKeyKeepsEachEntry checks that keys of a
+// map with pointer keys that OnDuplicateKey reports as repeats each keep
+// the entry goccy gives them, when no hook would need to tell two equal
+// keys apart.
+func TestReportedRepeatOfAPointerKeyKeepsEachEntry(t *testing.T) {
+	strs := func() any { return new(map[*string]gapHook) }
+	strsPlain := func() any { return new(map[*string]string) }
+	anys := func() any { return new(map[*any]gapHook) }
+	anysPlain := func() any { return new(map[*any]string) }
+	runSpelledCases(t, []spelledCase{
+		{"a repeat with no hook site", "1: ~\n1: ~\n", func() any { return new(map[*int]gapHook) }, func() any { return new(map[*int]string) }},
+		{"the string null and a nil key", "\"null\": a\nnull: b\n", strs, strsPlain},
+		{"a nil key and the string null", "null: a\n\"null\": b\n", strs, strsPlain},
+		{"an int and the string 1", "1: a\n\"1\": b\n", anys, anysPlain},
+		{"a nil key and the string null as any", "~: a\n\"null\": b\n", anys, anysPlain},
+	})
 }
 
 // TestReportedRepeatsElsewhereAreUnchanged checks that OnDuplicateKey
@@ -472,5 +502,126 @@ func TestFoldInAnotherMappingIsNotRefused(t *testing.T) {
 		if got != want {
 			t.Errorf("%s: got %s, want %s", tc.name, got, want)
 		}
+	}
+}
+
+// spelledCase decodes in with OnDuplicateKey set into the hooked target
+// and into the plain one, which holds string where the hooked one holds
+// gapHook.
+type spelledCase struct {
+	name          string
+	in            string
+	hooked, plain func() any
+}
+
+// runSpelledCases checks that each hooked decode keeps the entries the
+// plain decode keeps, with each hook on its own entry's value, and that
+// both report the same repeats.
+func runSpelledCases(t *testing.T, cases []spelledCase) {
+	t.Helper()
+	for _, tc := range cases {
+		var hookedReports, plainReports []yaml.DuplicateKey
+		hooked, plain := tc.hooked(), tc.plain()
+		err := yaml.UnmarshalWith([]byte(tc.in), hooked, yaml.DecodeOptions{OnDuplicateKey: func(d yaml.DuplicateKey) { hookedReports = append(hookedReports, d) }})
+		if err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+			continue
+		}
+		err = yaml.UnmarshalWith([]byte(tc.in), plain, yaml.DecodeOptions{OnDuplicateKey: func(d yaml.DuplicateKey) { plainReports = append(plainReports, d) }})
+		if err != nil {
+			t.Fatalf("%s: plain: %v", tc.name, err)
+		}
+		if got, want := renderEntries(reflect.ValueOf(hooked)), renderEntries(reflect.ValueOf(plain)); got != want {
+			t.Errorf("%s: got %s, want %s", tc.name, got, want)
+		}
+		if !reflect.DeepEqual(hookedReports, plainReports) {
+			t.Errorf("%s: reports %+v, want %+v", tc.name, hookedReports, plainReports)
+		}
+	}
+}
+
+// spelledAny has a map with interface keys beside a hooked field.
+type spelledAny struct {
+	M map[any]gapHook `yaml:"m"`
+	N gapHook         `yaml:"n"`
+}
+
+// spelledAnyPlain is spelledAny with string in place of gapHook.
+type spelledAnyPlain struct {
+	M map[any]string `yaml:"m"`
+	N string         `yaml:"n"`
+}
+
+// TestReportedRepeatKeepsKeysSpelledApart checks that keys OnDuplicateKey
+// reports as repeats, but that a map's key type reads as different Go
+// keys, such as a null and the string null, each keep their entry.
+func TestReportedRepeatKeepsKeysSpelledApart(t *testing.T) {
+	anys := func() any { return new(map[any]gapHook) }
+	anysPlain := func() any { return new(map[any]string) }
+	strs := func() any { return new(map[string]gapHook) }
+	strsPlain := func() any { return new(map[string]string) }
+	runSpelledCases(t, []spelledCase{
+		{"a null and the string null", "~: a\n\"null\": b\n", anys, anysPlain},
+		{"null and the string null", "null: a\n\"null\": b\n", anys, anysPlain},
+		{"the string null first", "\"null\": a\nnull: b\n", anys, anysPlain},
+		{"a capital null", "Null: a\n'null': b\n", anys, anysPlain},
+		{"a tagged string null", "null: a\n!!str null: b\n", anys, anysPlain},
+		{"a bool and the string true", "true: a\n\"true\": b\n", anys, anysPlain},
+		{"an int and the string 1", "1: a\n\"1\": b\n", anys, anysPlain},
+		{"a tagged string 1", "!!str 1: a\n1: b\n", anys, anysPlain},
+		{"a repeat around the string", "1: a\n\"1\": b\n1: c\n", anys, anysPlain},
+		{"a repeat around the string null", "null: a\n\"null\": b\nnull: c\n", anys, anysPlain},
+		{"a null and the string null as strings", "~: a\n\"null\": b\n", strs, strsPlain},
+		{"the string null first as strings", "\"null\": a\nnull: b\n", strs, strsPlain},
+		{"an int and the string 1 as strings", "1: a\n\"1\": b\n", strs, strsPlain},
+		{"an inner map", "x:\n  1: a\n  '1': b\n  ~: c\n  \"null\": d\n",
+			func() any { return new(map[string]map[any]gapHook) },
+			func() any { return new(map[string]map[any]string) }},
+		{"a map beside a hooked field", "n: q\nm:\n  true: a\n  'true': b\n",
+			func() any { return new(spelledAny) }, func() any { return new(spelledAnyPlain) }},
+		// These keys are spelled apart, so nothing is reported, and they
+		// passed before.
+		{"a null and the string ~", "~: a\n\"~\": b\n", anys, anysPlain},
+		{"an int and a float", "1: a\n1.0: b\n", anys, anysPlain},
+	})
+}
+
+// TestReportedRepeatBesideAMergeKey checks a mapping with a << merge key
+// and keys OnDuplicateKey reports as repeats, before the merge key,
+// after it, inside its source, and over the keys it supplies.
+func TestReportedRepeatBesideAMergeKey(t *testing.T) {
+	ints := func() any { return new(map[int]gapHook) }
+	intsPlain := func() any { return new(map[int]string) }
+	anys := func() any { return new(map[any]gapHook) }
+	anysPlain := func() any { return new(map[any]string) }
+	runSpelledCases(t, []spelledCase{
+		{"a spelling between, then a merge", "1: a\n+1: b\n<<: {1: m}\n1: c\n", ints, intsPlain},
+		{"repeats before the merge key", "1: a\n+1: b\n1: c\n<<: {2: m}\n", ints, intsPlain},
+		{"repeats after the merge key", "<<: {2: m}\n1: a\n+1: b\n1: c\n", ints, intsPlain},
+		{"repeats inside the source", "<<: {1: m, +1: n, 1: o}\n2: c\n", ints, intsPlain},
+		{"a repeat over a merged key", "<<: {1: m}\n+1: a\n1: b\n+1: c\n", ints, intsPlain},
+		{"a null and the string null by a merge", "~: a\n<<: {x: m}\n\"null\": b\n", anys, anysPlain},
+		{"an int and the string 1 by a merge", "<<: {x: m}\n1: a\n\"1\": b\n", anys, anysPlain},
+		{"two merge keys", "<<: {1: m}\n<<: {1: n}\n1: a\n+1: b\n1: c\n", ints, intsPlain},
+	})
+}
+
+// TestReportedRepeatsOnThePlainRoute pins the decodes with no hook for
+// the inputs above, which keep what goccy keeps.
+func TestReportedRepeatsOnThePlainRoute(t *testing.T) {
+	opts := yaml.DecodeOptions{OnDuplicateKey: func(yaml.DuplicateKey) {}}
+	var anys map[any]string
+	if err := yaml.UnmarshalWith([]byte("~: a\n\"null\": b\n1: c\n'1': d\n"), &anys, opts); err != nil {
+		t.Fatal(err)
+	}
+	if want := map[any]string{nil: "a", "null": "b", uint64(1): "c", "1": "d"}; !reflect.DeepEqual(anys, want) {
+		t.Errorf("got %v, want %v", anys, want)
+	}
+	var strs map[string]string
+	if err := yaml.UnmarshalWith([]byte("~: a\n\"null\": b\n1: c\n'1': d\n"), &strs, opts); err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]string{"": "a", "null": "b", "1": "d"}; !reflect.DeepEqual(strs, want) {
+		t.Errorf("got %v, want %v", strs, want)
 	}
 }

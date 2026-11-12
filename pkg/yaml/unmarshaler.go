@@ -75,9 +75,9 @@ func reachesUnmarshaler(t reflect.Type) bool {
 // Unmarshaler. A target that is one itself has its method called with n.
 // Any other target decodes through a tree that records which Node each
 // of its tokens came from, so each method finds the node that holds its
-// value. folded holds the repeated keys that OnDuplicateKey folded in
-// n, as collapseDuplicates describes, or nil.
-func (n *Node) decodeHooked(v any, folded foldedKeys) error {
+// value. written holds the pairs the text wrote in each mapping of n
+// that OnDuplicateKey folded, as writtenPairs describes, or nil.
+func (n *Node) decodeHooked(v any, written writtenPairs) error {
 	if u, ok := v.(Unmarshaler); ok {
 		root, de := documentRoot(n)
 		if de != nil || root == nil {
@@ -89,7 +89,7 @@ func (n *Node) decodeHooked(v any, folded foldedKeys) error {
 		}
 		return callUnmarshaler(u, resolved, reflect.TypeOf(v).Elem())
 	}
-	owners := &tokenOwners{folded: folded}
+	owners := &tokenOwners{written: written}
 	return decodeFrom(n.trackedSource(owners), v, n.opts, owners)
 }
 

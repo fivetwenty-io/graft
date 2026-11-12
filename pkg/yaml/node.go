@@ -106,11 +106,11 @@ var publicKinds = [...]Kind{
 // of data with graft's YAML reader and copies it into out. Empty input,
 // or input that holds only comments, leaves out unchanged. data starts
 // lineOffset lines into its stream, so each Node's Line, each error, and
-// each duplicate key reported count from the start of that stream. It
-// returns the repeated keys that OnDuplicateKey folded, as
-// collapseDuplicates describes, and moves each pair it keeps to the
-// place of its last repeat when last is set.
-func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int, last bool) (foldedKeys, error) {
+// each duplicate key reported count from the start of that stream. When
+// last is set, it moves each pair that OnDuplicateKey keeps to the place
+// of its last repeat and returns the pairs the text wrote in each
+// mapping it folded, as collapseDuplicates describes.
+func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int, last bool) (writtenPairs, error) {
 	doc, err := yamlcodec.FirstMergeDocument(data)
 	if err != nil {
 		return nil, shiftError(translate(err), lineOffset)
@@ -129,15 +129,15 @@ func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int, last
 	}
 	var root Node
 	c.fill(&root, docs[0])
-	var folded foldedKeys
+	var written writtenPairs
 	if opts.OnDuplicateKey != nil {
-		folded = collapseDuplicates(&root, opts.OnDuplicateKey, last)
+		written = collapseDuplicates(&root, opts.OnDuplicateKey, last)
 	}
 	if line := documentLine(data); line > 0 {
 		root.Line, root.Column = line+lineOffset, 1
 	}
 	*out = root
-	return folded, nil
+	return written, nil
 }
 
 // documentLine returns the line of the first document's "---" marker or

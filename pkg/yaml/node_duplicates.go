@@ -1,6 +1,7 @@
 package yaml
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
@@ -13,9 +14,7 @@ import (
 // value. Merge keys are never reported, and the merge keys of one
 // mapping become one, as mapping describes. Keys that are aliases or
 // collections are left alone. A node reached a second time, through an
-// alias, is not walked again. It returns, for each key whose later
-// repeats it folded, with the mapping that holds it, the last of those
-// repeats, or nil when it folded none.
+// alias, is not walked again.
 //
 // When last is set, the last repeat's pair is kept at its own place, and
 // every earlier pair with the same slot is dropped instead. A decode
@@ -28,29 +27,31 @@ import (
 // mapping with a merge key keeps the first place either way, since the
 // merge fold of the text route keeps each key where it was first
 // written, as yamlcodec's mergeExpander does.
-func collapseDuplicates(root *Node, report func(DuplicateKey), last bool) foldedKeys {
+//
+// When last is set, it returns the pairs each mapping it changed held
+// before, or nil when it changed none. The decode into Go values reads
+// those pairs, as writtenPairs describes.
+func collapseDuplicates(root *Node, report func(DuplicateKey), last bool) writtenPairs {
 	w := &nodeDupWalker{report: report, seen: make(map[*Node]bool), last: last}
 	w.walk(root, "")
-	return w.folded
+	return w.written
 }
 
 type nodeDupWalker struct {
-	report func(DuplicateKey)
-	seen   map[*Node]bool
-	folded foldedKeys
-	last   bool
+	report  func(DuplicateKey)
+	seen    map[*Node]bool
+	written writtenPairs
+	last    bool
 }
 
-// foldedKeys holds, for each key that a fold kept, the last repeat the
-// fold dropped into its pair.
-type foldedKeys map[foldKey]*Node
-
-// foldKey is a key a fold kept, with the mapping that holds it. An
-// alias key in another mapping names the same key node, so the key
-// alone can't tell which mapping the fold was in.
-type foldKey struct {
-	mapping, key *Node
-}
+// writtenPairs holds, for each mapping whose pairs OnDuplicateKey's fold
+// changed on the way to a decode into Go values, the Content it held
+// before the fold, with every pair the text wrote. The fold reads a key as its text, so
+// it takes keys such as a null and the string null, or 1 and "1", for
+// one key, though a map with interface keys holds them as two. The
+// decode reads these pairs in turn, as it reads the text, and the Nodes
+// that methods receive keep the fold.
+type writtenPairs map[*Node][]*Node
 
 func (w *nodeDupWalker) walk(n *Node, path string) {
 	if n == nil || w.seen[n] {
@@ -135,11 +136,9 @@ func (w *nodeDupWalker) mapping(n *Node, path string) {
 			case repeat && !move:
 				w.walk(val, child)
 				kept[at].val, kept[at].last = val, i
-				w.fold(n, kept[at].key, key)
 				continue
 			case repeat:
 				dropSlot(kept, at)
-				w.fold(n, key, key)
 			case held:
 				pair.prev = at + 1
 			}
@@ -148,7 +147,19 @@ func (w *nodeDupWalker) mapping(n *Node, path string) {
 		w.walk(val, child)
 		kept = append(kept, pair)
 	}
-	n.Content = contentOf(m.arrange(kept), n.Content)
+	w.replace(n, contentOf(m.arrange(kept), n.Content))
+}
+
+// replace sets the Content of the mapping n to pairs. When last is set
+// and pairs differ from what n held, it keeps what n held in written.
+func (w *nodeDupWalker) replace(n *Node, pairs []*Node) {
+	if w.last && !slices.Equal(pairs, n.Content) {
+		if w.written == nil {
+			w.written = make(writtenPairs)
+		}
+		w.written[n] = n.Content
+	}
+	n.Content = pairs
 }
 
 // contentOf returns the Content of a mapping that holds pairs, leaving
@@ -170,15 +181,6 @@ func contentOf(pairs []keptPair, old []*Node) []*Node {
 // isMergeKey reports whether key is a << merge key.
 func isMergeKey(key *Node) bool {
 	return key != nil && key.Kind == ScalarNode && key.Tag == yamlnode.TagMerge
-}
-
-// fold records that the pair of the mapping n whose key is kept now
-// holds the value of the later repeat of that key.
-func (w *nodeDupWalker) fold(n, kept, repeat *Node) {
-	if w.folded == nil {
-		w.folded = make(foldedKeys)
-	}
-	w.folded[foldKey{mapping: n, key: kept}] = repeat
 }
 
 // holdsMergeKey reports whether the mapping n holds a << merge key.

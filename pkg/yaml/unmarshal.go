@@ -105,16 +105,15 @@ func unmarshalAt(data []byte, v any, opts DecodeOptions, lineOffset int) error {
 		// the direct route, which costs less. The Nodes already count
 		// their lines from the start of the stream, and so do the
 		// errors their decode gives. A repeated key that OnDuplicateKey
-		// folds keeps the place of its last repeat, so it wins as it
-		// does on the direct route. The decode learns which keys were
-		// folded, since a map with pointer keys keeps an entry for each
-		// of them on the direct route.
+		// folds keeps the place of its last repeat in the Nodes the
+		// methods receive. The decode reads the pairs the text wrote,
+		// so it keeps the entries the direct route keeps.
 		var root Node
-		folded, err := decodeNode(data, &root, opts, lineOffset, true)
+		written, err := decodeNode(data, &root, opts, lineOffset, true)
 		if err != nil {
 			return err
 		}
-		return root.decodeHooked(v, folded)
+		return root.decodeHooked(v, written)
 	}
 	err = decodeFrom(textSource(data, shiftDuplicates(opts, lineOffset)), v, opts, nil)
 	return shiftError(err, lineOffset)
