@@ -367,3 +367,71 @@ func TestReportedRepeatsElsewhereAreUnchanged(t *testing.T) {
 		}
 	}
 }
+
+// TestReportedRepeatKeepsTheLastAlikeKey checks that when OnDuplicateKey
+// folds a key written twice, a pair between the two whose key a map reads
+// as the same Go key still loses to the later repeat, as it does when
+// the text decodes straight into the map, and that the repeats reported
+// are the same on both routes.
+func TestReportedRepeatKeepsTheLastAlikeKey(t *testing.T) {
+	for _, tc := range []struct {
+		name, in      string
+		hooked, plain func() any
+	}{
+		{"a spelling between", "1: a\n+1: b\n1: c\n", func() any { return new(map[int]gapHook) }, func() any { return new(map[int]string) }},
+		{"two spellings between", "1: a\n+1: b\n0x1: c\n1: d\n", func() any { return new(map[int]gapHook) }, func() any { return new(map[int]string) }},
+		{"a repeat of the middle spelling", "+1: a\n1: b\n+1: c\n", func() any { return new(map[int]gapHook) }, func() any { return new(map[int]string) }},
+		{"keys of any type", "1: a\n1.0: b\n1: c\n", func() any { return new(map[float64]gapHook) }, func() any { return new(map[float64]string) }},
+		{"an inner map", "x:\n  1: a\n  +1: b\n  1: c\n", func() any { return new(map[string]map[int]gapHook) }, func() any { return new(map[string]map[int]string) }},
+		{"two spellings of null", "null: a\n~: b\nnull: c\n", func() any { return new(map[any]gapHook) }, func() any { return new(map[any]string) }},
+		{"a merge between", "1: a\n<<: {+1: m}\n1: c\n", func() any { return new(map[int]gapHook) }, func() any { return new(map[int]string) }},
+		{"a merge after", "+1: a\n1: b\n<<: {1: m}\n+1: c\n", func() any { return new(map[int]gapHook) }, func() any { return new(map[int]string) }},
+	} {
+		var hookedReports, plainReports []yaml.DuplicateKey
+		hooked, plain := tc.hooked(), tc.plain()
+		err := yaml.UnmarshalWith([]byte(tc.in), hooked, yaml.DecodeOptions{OnDuplicateKey: func(d yaml.DuplicateKey) { hookedReports = append(hookedReports, d) }})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		err = yaml.UnmarshalWith([]byte(tc.in), plain, yaml.DecodeOptions{OnDuplicateKey: func(d yaml.DuplicateKey) { plainReports = append(plainReports, d) }})
+		if err != nil {
+			t.Fatalf("%s: plain: %v", tc.name, err)
+		}
+		if got, want := renderEntries(reflect.ValueOf(hooked)), renderEntries(reflect.ValueOf(plain)); got != want {
+			t.Errorf("%s: got %s, want %s", tc.name, got, want)
+		}
+		if !reflect.DeepEqual(hookedReports, plainReports) {
+			t.Errorf("%s: reports %+v, want %+v", tc.name, hookedReports, plainReports)
+		}
+	}
+}
+
+// TestReportedRepeatLeavesTheNodeOrder checks that a Node read with
+// OnDuplicateKey still keeps a repeated key at its first place, holding
+// its last value, and that a plain map still takes the last value.
+func TestReportedRepeatLeavesTheNodeOrder(t *testing.T) {
+	in := []byte("1: a\n+1: b\n1: c\n")
+	reports := 0
+	opts := yaml.DecodeOptions{OnDuplicateKey: func(yaml.DuplicateKey) { reports++ }}
+	var n yaml.Node
+	if err := yaml.UnmarshalWith(in, &n, opts); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, c := range n.Content[0].Content {
+		got = append(got, c.Value)
+	}
+	if want := []string{"1", "c", "+1", "b"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Node pairs %q, want %q", got, want)
+	}
+	var plain map[int]string
+	if err := yaml.UnmarshalWith(in, &plain, opts); err != nil {
+		t.Fatal(err)
+	}
+	if plain[1] != "c" || len(plain) != 1 {
+		t.Errorf("plain map %v, want 1: c", plain)
+	}
+	if reports != 2 {
+		t.Errorf("%d reports, want 2", reports)
+	}
+}

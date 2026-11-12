@@ -16,8 +16,19 @@ import (
 // alias, is not walked again. It returns, for each key whose later
 // repeats it folded, the last of those repeats, or nil when it folded
 // none.
-func collapseDuplicates(root *Node, report func(DuplicateKey)) map[*Node]*Node {
-	w := &nodeDupWalker{report: report, seen: make(map[*Node]bool)}
+//
+// When last is set, the last repeat's pair is kept at its own place, and
+// every earlier pair with the same slot is dropped instead. A decode
+// into a map reads keys such as 1 and +1 as one key, and the last pair
+// that gives a key wins, so a pair written between two repeats must
+// still lose to the later one. The pairs with the same slot hold keys
+// that a map with string keys holds as one, such as ~ and null, which
+// the later repeat writes over in any case. A Node keeps the first place, and only a decode that goes on
+// into Go values sets last. A mapping with a merge key keeps the first
+// place either way, since the merge fold of the text route keeps each
+// key where it was first written, as yamlcodec's mergeExpander does.
+func collapseDuplicates(root *Node, report func(DuplicateKey), last bool) map[*Node]*Node {
+	w := &nodeDupWalker{report: report, seen: make(map[*Node]bool), last: last}
 	w.walk(root, "")
 	return w.folded
 }
@@ -26,6 +37,7 @@ type nodeDupWalker struct {
 	report func(DuplicateKey)
 	seen   map[*Node]bool
 	folded map[*Node]*Node
+	last   bool
 }
 
 func (w *nodeDupWalker) walk(n *Node, path string) {
@@ -77,6 +89,7 @@ func (w *nodeDupWalker) mapping(n *Node, path string) {
 	var kept []keptPair
 	var m merges
 	combine := !refusedMerge(n)
+	move := w.last && !holdsMergeKey(n)
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		key, val := n.Content[i], n.Content[i+1]
 		if isMergeKey(key) {
@@ -101,35 +114,69 @@ func (w *nodeDupWalker) mapping(n *Node, path string) {
 			child += key.Value
 			id := yamlnode.KeyID{Text: key.Value, Null: yamlnode.ShortTag(key.Tag) == yamlnode.TagNull}
 			pair.slot, pair.scalar = id.Slot(), true
-			if first, repeat := keys.Add(id, key); repeat {
+			first, repeat := keys.Add(id, key)
+			if repeat {
 				w.report(DuplicateKey{Path: child, Line: key.Line, Column: key.Column, FirstLine: first.Line, FirstColumn: first.Column})
+			}
+			at, held := lastAt[id.Slot()]
+			switch {
+			case repeat && !move:
 				w.walk(val, child)
-				at := lastAt[id.Slot()]
 				kept[at].val, kept[at].last = val, i
-				if w.folded == nil {
-					w.folded = make(map[*Node]*Node)
-				}
-				w.folded[kept[at].key] = key
+				w.fold(kept[at].key, key)
 				continue
+			case repeat:
+				dropSlot(kept, at)
+				w.fold(key, key)
+			case held:
+				pair.prev = at + 1
 			}
 			lastAt[id.Slot()] = len(kept)
 		}
 		w.walk(val, child)
 		kept = append(kept, pair)
 	}
-	out := make([]*Node, 0, len(n.Content))
-	for _, pair := range m.arrange(kept) {
-		out = append(out, pair.key, pair.val)
+	n.Content = contentOf(m.arrange(kept), n.Content)
+}
+
+// contentOf returns the Content of a mapping that holds pairs, leaving
+// out the pairs a later repeat dropped. A lone key at the end of old,
+// the mapping's Content before, stays at the end.
+func contentOf(pairs []keptPair, old []*Node) []*Node {
+	out := make([]*Node, 0, len(old))
+	for _, pair := range pairs {
+		if !pair.dropped {
+			out = append(out, pair.key, pair.val)
+		}
 	}
-	if len(n.Content)%2 == 1 {
-		out = append(out, n.Content[len(n.Content)-1])
+	if len(old)%2 == 1 {
+		out = append(out, old[len(old)-1])
 	}
-	n.Content = out
+	return out
 }
 
 // isMergeKey reports whether key is a << merge key.
 func isMergeKey(key *Node) bool {
 	return key != nil && key.Kind == ScalarNode && key.Tag == yamlnode.TagMerge
+}
+
+// fold records that the pair whose key is kept now holds the value of
+// the later repeat of that key.
+func (w *nodeDupWalker) fold(kept, repeat *Node) {
+	if w.folded == nil {
+		w.folded = make(map[*Node]*Node)
+	}
+	w.folded[kept] = repeat
+}
+
+// holdsMergeKey reports whether the mapping n holds a << merge key.
+func holdsMergeKey(n *Node) bool {
+	for i := 0; i < len(n.Content); i += 2 {
+		if isMergeKey(n.Content[i]) {
+			return true
+		}
+	}
+	return false
 }
 
 // refusedMerge reports whether the mapping n holds a merge key whose
@@ -172,12 +219,29 @@ func refusedMerge(n *Node) bool {
 
 // keptPair is a pair mapping keeps. last is the index in Content of the
 // last pair whose value it holds, slot is the key a map holds for its
-// key, and scalar says its key is a scalar, and so has a slot.
+// key, and scalar says its key is a scalar, and so has a slot. dropped
+// says a later repeat's pair takes its place, and prev, when not 0, is
+// one more than the index among the kept pairs of the pair before it
+// with the same slot, which a repeat drops as well.
 type keptPair struct {
 	key, val *Node
 	last     int
 	slot     string
 	scalar   bool
+	dropped  bool
+	prev     int
+}
+
+// dropSlot drops the kept pair at index at and every pair before it
+// with the same slot.
+func dropSlot(kept []keptPair, at int) {
+	for {
+		kept[at].dropped = true
+		if kept[at].prev == 0 {
+			return
+		}
+		at = kept[at].prev - 1
+	}
 }
 
 // merges gathers the merge keys of one mapping. at is the index among

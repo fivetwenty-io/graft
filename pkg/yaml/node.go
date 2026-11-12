@@ -108,8 +108,9 @@ var publicKinds = [...]Kind{
 // lineOffset lines into its stream, so each Node's Line, each error, and
 // each duplicate key reported count from the start of that stream. It
 // returns the repeated keys that OnDuplicateKey folded, as
-// collapseDuplicates describes.
-func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int) (map[*Node]*Node, error) {
+// collapseDuplicates describes, and moves each pair it keeps to the
+// place of its last repeat when last is set.
+func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int, last bool) (map[*Node]*Node, error) {
 	doc, err := yamlcodec.FirstMergeDocument(data)
 	if err != nil {
 		return nil, shiftError(translate(err), lineOffset)
@@ -130,7 +131,7 @@ func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int) (map
 	c.fill(&root, docs[0])
 	var folded map[*Node]*Node
 	if opts.OnDuplicateKey != nil {
-		folded = collapseDuplicates(&root, opts.OnDuplicateKey)
+		folded = collapseDuplicates(&root, opts.OnDuplicateKey, last)
 	}
 	if line := documentLine(data); line > 0 {
 		root.Line, root.Column = line+lineOffset, 1
