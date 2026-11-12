@@ -3,13 +3,13 @@ package operators
 import (
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
-	"github.com/fivetwenty-io/graft/internal/oploc"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -119,8 +119,8 @@ func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			}
 
 			fromEnv := leaf != nil && leaf.Type == EnvVar
-			if m, ok := val.(map[string]interface{}); ok && leaf != nil && leaf.Type == Reference {
-				val = withoutPrunedKeys(ev, leaf.Reference, m)
+			if m, ok := val.(map[string]interface{}); ok && !fromEnv {
+				val = withoutPrunedKeys(ev, m)
 			}
 			parts, err := joinParts(i, val, fromEnv)
 			if err != nil {
@@ -193,43 +193,120 @@ func joinParts(i int, val interface{}, fromEnv bool) ([]string, error) {
 	return []string{fmt.Sprintf("%v", val)}, nil
 }
 
-// withoutPrunedKeys returns m, the map at ref, without the keys queued
-// for pruning, since they will not be in the output. A pruned entry of
-// a list is gone from the list before join reads it, and a pruned key
-// of a map is left out the same way. m is returned as it is when no
-// key of it is queued.
-func withoutPrunedKeys(ev *Evaluator, ref *tree.Cursor, m map[string]interface{}) map[string]interface{} {
-	engine := graft.EngineOf(ev)
-	if engine == nil || ref == nil {
+// withoutPrunedKeys returns m without the map keys queued for pruning,
+// at any depth, since they will not be in the output. A pruned entry of
+// a list is gone from the list before join reads it, and a pruned key of
+// a map is left out the same way. A grab hands back the map it reads,
+// not a copy, so a key is matched by the map that holds it in the tree,
+// whether join reached that map through a reference or a nested call.
+// m is returned as it is when no key in it is queued.
+func withoutPrunedKeys(ev *Evaluator, m map[string]interface{}) map[string]interface{} {
+	pruned := prunedKeysByMap(ev)
+	if len(pruned) == 0 {
 		return m
+	}
+	out, _ := dropPrunedKeys(m, pruned, map[uintptr]bool{})
+	if mm, ok := out.(map[string]interface{}); ok {
+		return mm
+	}
+	return m
+}
+
+// prunedKeysByMap returns, for each map in the tree that holds a key
+// queued for pruning, the set of those keys, keyed by the map's
+// address.
+func prunedKeysByMap(ev *Evaluator) map[uintptr]map[string]bool {
+	engine := graft.EngineOf(ev)
+	if engine == nil || ev.Tree == nil {
+		return nil
 	}
 	state := engine.GetOperatorState()
 	if state == nil {
-		return m
+		return nil
 	}
-	at := oploc.Canonical(ref, ev.Tree).Nodes
-	var out map[string]interface{}
+	var out map[uintptr]map[string]bool
 	for _, path := range state.GetKeysToPrune() {
 		c, err := tree.ParseCursor(path)
-		if err != nil || len(c.Nodes) != len(at)+1 {
+		if err != nil || len(c.Nodes) == 0 {
 			continue
 		}
 		key := c.Pop()
-		if _, ok := m[key]; !ok {
+		parent, err := c.Resolve(ev.Tree)
+		if err != nil {
 			continue
 		}
-		if !slices.Equal(oploc.Canonical(c, ev.Tree).Nodes, at) {
+		pm, ok := parent.(map[string]interface{})
+		if !ok || pm == nil {
+			continue
+		}
+		if _, ok := pm[key]; !ok {
 			continue
 		}
 		if out == nil {
-			out = maps.Clone(m)
+			out = map[uintptr]map[string]bool{}
 		}
-		delete(out, key)
-	}
-	if out == nil {
-		return m
+		p := reflect.ValueOf(pm).Pointer()
+		if out[p] == nil {
+			out[p] = map[string]bool{}
+		}
+		out[p][key] = true
 	}
 	return out
+}
+
+// dropPrunedKeys returns val with every key in pruned left out of the
+// maps it holds, at any depth, and reports whether anything changed. A
+// map or list that changes is copied, and the tree is left as it is.
+// seen holds the maps on the current path, so a map that holds itself
+// is not walked again.
+func dropPrunedKeys(val interface{}, pruned map[uintptr]map[string]bool, seen map[uintptr]bool) (interface{}, bool) {
+	switch v := val.(type) {
+	case map[string]interface{}:
+		if v == nil {
+			return val, false
+		}
+		p := reflect.ValueOf(v).Pointer()
+		if seen[p] {
+			return val, false
+		}
+		seen[p] = true
+		defer delete(seen, p)
+		var out map[string]interface{}
+		for k, e := range v {
+			if pruned[p][k] {
+				if out == nil {
+					out = maps.Clone(v)
+				}
+				delete(out, k)
+				continue
+			}
+			if ne, changed := dropPrunedKeys(e, pruned, seen); changed {
+				if out == nil {
+					out = maps.Clone(v)
+				}
+				out[k] = ne
+			}
+		}
+		if out == nil {
+			return val, false
+		}
+		return out, true
+	case []interface{}:
+		var out []interface{}
+		for i, e := range v {
+			if ne, changed := dropPrunedKeys(e, pruned, seen); changed {
+				if out == nil {
+					out = slices.Clone(v)
+				}
+				out[i] = ne
+			}
+		}
+		if out == nil {
+			return val, false
+		}
+		return out, true
+	}
+	return val, false
 }
 
 //nolint:gochecknoinits // Operator registration must happen at package load time

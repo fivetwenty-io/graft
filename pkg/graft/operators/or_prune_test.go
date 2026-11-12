@@ -133,6 +133,32 @@ func TestJoinLeavesOutAPrunedMapKey(t *testing.T) {
 			srcs: []string{"l:\n- name: x\n  m:\n    a: 1\n    b: (( prune ))\nj: (( join \",\" l.x.m ))\n"},
 			want: "a:1",
 		},
+		{
+			name: "map from a nested grab",
+			srcs: []string{"m:\n  a: 1\n  b: (( prune ))\n" +
+				"j: (( join \",\" (( grab m )) ))\n"},
+			want: "a:1",
+		},
+		{
+			name: "deeper key",
+			srcs: []string{"m:\n  a: 1\n  n:\n    x: (( prune ))\n    y: 2\n" +
+				"j: (( join \",\" m ))\n"},
+			want: "a:1,n:map[y:2]",
+		},
+		{
+			name: "deeper key in a map from a nested grab",
+			srcs: []string{"m:\n  a: 1\n  n:\n    x: (( prune ))\n    y: 2\n" +
+				"j: (( join \",\" (( grab m )) ))\n"},
+			want: "a:1,n:map[y:2]",
+		},
+		{
+			name: "deeper prune over an earlier value",
+			srcs: []string{
+				"m:\n  a: 1\n  n:\n    x: 1\n    y: 2\n",
+				"m:\n  n:\n    x: (( prune ))\nj: (( join \",\" (( grab m.n )) ))\n",
+			},
+			want: "y:2",
+		},
 	}
 	for _, tc := range cases {
 		for _, parallel := range []bool{true, false} {
