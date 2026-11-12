@@ -1,4 +1,4 @@
-package yamldiff
+package load
 
 import (
 	"testing"

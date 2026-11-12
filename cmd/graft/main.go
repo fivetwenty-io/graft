@@ -27,6 +27,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/internal/yamldiff"
+	"github.com/fivetwenty-io/graft/internal/yamldiff/load"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 
 	"github.com/fivetwenty-io/graft/log"
@@ -1131,7 +1132,7 @@ func loadDiffDocuments(paths []string) (fromLabel string, fromDocs []interface{}
 		return "", nil, "", nil, ansi.Errorf("incorrect number of files given to loadDiffDocuments(); please file a bug report")
 	}
 
-	from, to, err := yamldiff.LoadFiles(paths[0], paths[1])
+	from, to, err := load.Files(paths[0], paths[1])
 	if err != nil {
 		return "", nil, "", nil, err
 	}

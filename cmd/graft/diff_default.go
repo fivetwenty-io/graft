@@ -6,6 +6,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/humanreport"
 	"github.com/fivetwenty-io/graft/internal/yamldiff"
+	"github.com/fivetwenty-io/graft/internal/yamldiff/load"
 )
 
 // renderDefaultDiff returns exactly what `spruce diff a b` writes to
@@ -18,9 +19,9 @@ import (
 // differ and 0 when they do not.
 // handleDiff has already checked that paths holds exactly two files.
 func renderDefaultDiff(paths []string, opts humanreport.Options) (stdout, stderr string, code int) {
-	from, to, err := yamldiff.LoadFiles(paths[0], paths[1])
+	from, to, err := load.Files(paths[0], paths[1])
 	if err != nil {
-		var loadErr *yamldiff.LoadError
+		var loadErr *load.Error
 		if errors.As(err, &loadErr) {
 			return "", loadErr.Styled(humanreport.LocationStyler(opts)) + "\n", 2
 		}

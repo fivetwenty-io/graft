@@ -10,6 +10,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/termstyle"
 	"github.com/fivetwenty-io/graft/internal/yamldiff"
+	"github.com/fivetwenty-io/graft/internal/yamldiff/load"
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
 )
 
@@ -51,9 +52,9 @@ func TestWriteMatchesCorpusGoldens(t *testing.T) {
 			for _, m := range corpusModes {
 				// Each mode gets a fresh load and comparison, because
 				// rendering reorders shared nodes in place.
-				f, g, err := yamldiff.LoadFiles(from, to)
+				f, g, err := load.Files(from, to)
 				if err != nil {
-					t.Fatalf("LoadFiles: %v", err)
+					t.Fatalf("load.Files: %v", err)
 				}
 				report, err := yamldiff.CompareInputFiles(f, g)
 				if err != nil {
@@ -86,7 +87,7 @@ func reportFor(t *testing.T, from, to string) yamldiff.Report {
 			t.Fatal(err)
 		}
 	}
-	f, g, err := yamldiff.LoadFiles(filepath.Join(dir, "from.yml"), filepath.Join(dir, "to.yml"))
+	f, g, err := load.Files(filepath.Join(dir, "from.yml"), filepath.Join(dir, "to.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}

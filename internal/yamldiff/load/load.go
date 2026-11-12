@@ -20,11 +20,14 @@
 //
 // Ported from github.com/gonvenience/ytbx v1.5.0 (input.go) and modified
 // for graft: documents are yamlnode trees parsed with goccy, load and
-// parse failures are a LoadError that can style its location, and the
+// parse failures are an Error that can style its location, and the
 // larger functions are split into helpers that keep every decision in
 // ytbx's order.
 
-package yamldiff
+// Package load reads diff inputs from stdin, files, directories, and
+// URIs. It lives outside internal/yamldiff so the diff core reads only
+// the bytes it is given.
+package load
 
 import (
 	"context"
@@ -37,52 +40,34 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/yamldiff"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
-// LocationKind says how ytbx would color an input location.
-type LocationKind int
-
-// The kinds of input location.
-const (
-	// LocationPlain is a location that is neither stdin, a file, nor a URI.
-	LocationPlain LocationKind = iota
-	// LocationStdin is the dash that stands for standard input.
-	LocationStdin
-	// LocationFile is a location that exists on disk.
-	LocationFile
-	// LocationURI is a location that parses as a request URI.
-	LocationURI
-)
-
-// LocationStyler renders a location for an error message. It receives the
-// raw location and its kind, and decides what to print.
-type LocationStyler func(kind LocationKind, location string) string
-
-// LoadError is a failure to read or parse an input location. Op is "load"
+// Error is a failure to read or parse an input location. Op is "load"
 // or "parse".
-type LoadError struct {
+type Error struct {
 	Op       string
 	Location string
-	Kind     LocationKind
+	Kind     yamldiff.LocationKind
 	Err      error
 }
 
 // Error returns the message with the location unstyled. Like ytbx's
 // HumanReadableLocation with color off, it names stdin as "stdin".
-func (e *LoadError) Error() string { return e.Styled(nil) }
+func (e *Error) Error() string { return e.Styled(nil) }
 
 // Unwrap returns the underlying load or parse error.
-func (e *LoadError) Unwrap() error { return e.Err }
+func (e *Error) Unwrap() error { return e.Err }
 
 // Styled returns the message with the location passed through style, the
 // way ytbx's HumanReadableLocation colors it. A nil style leaves it plain.
-func (e *LoadError) Styled(style LocationStyler) string {
+func (e *Error) Styled(style yamldiff.LocationStyler) string {
 	loc := e.Location
 	switch {
 	case style != nil:
 		loc = style(e.Kind, e.Location)
-	case e.Kind == LocationStdin:
+	case e.Kind == yamldiff.LocationStdin:
 		loc = "stdin"
 	}
 	return fmt.Sprintf("unable to %s data from %s: %s", e.Op, loc, e.Err)
@@ -91,24 +76,24 @@ func (e *LoadError) Styled(style LocationStyler) string {
 // ClassifyLocation makes the decision ytbx's HumanReadableLocation makes.
 // Stdin comes first, then an existing path, then anything that parses as a
 // request URI, which includes absolute paths that do not exist.
-func ClassifyLocation(location string) LocationKind {
+func ClassifyLocation(location string) yamldiff.LocationKind {
 	if IsStdin(location) {
-		return LocationStdin
+		return yamldiff.LocationStdin
 	}
 	if _, err := os.Stat(location); err == nil {
-		return LocationFile
+		return yamldiff.LocationFile
 	}
 	if _, err := url.ParseRequestURI(location); err == nil {
-		return LocationURI
+		return yamldiff.LocationURI
 	}
-	return LocationPlain
+	return yamldiff.LocationPlain
 }
 
-// LoadFiles loads two locations concurrently. When both fail it reports
+// Files loads two locations concurrently. When both fail it reports
 // the from-location's error, as ytbx does.
-func LoadFiles(fromLocation, toLocation string) (InputFile, InputFile, error) {
+func Files(fromLocation, toLocation string) (yamldiff.InputFile, yamldiff.InputFile, error) {
 	type resultPair struct {
-		result InputFile
+		result yamldiff.InputFile
 		err    error
 	}
 
@@ -116,73 +101,73 @@ func LoadFiles(fromLocation, toLocation string) (InputFile, InputFile, error) {
 	toChan := make(chan resultPair, 1)
 
 	go func() {
-		result, err := LoadFile(fromLocation)
+		result, err := File(fromLocation)
 		fromChan <- resultPair{result, err}
 	}()
 
 	go func() {
-		result, err := LoadFile(toLocation)
+		result, err := File(toLocation)
 		toChan <- resultPair{result, err}
 	}()
 
 	from := <-fromChan
 	if from.err != nil {
-		return InputFile{}, InputFile{}, from.err
+		return yamldiff.InputFile{}, yamldiff.InputFile{}, from.err
 	}
 
 	to := <-toChan
 	if to.err != nil {
-		return InputFile{}, InputFile{}, to.err
+		return yamldiff.InputFile{}, yamldiff.InputFile{}, to.err
 	}
 
 	return from.result, to.result, nil
 }
 
-// LoadFile loads one location as YAML, JSON, or TOML. A directory goes to
-// LoadDirectory, and its error comes back unwrapped.
-func LoadFile(location string) (InputFile, error) {
+// File loads one location as YAML, JSON, or TOML. A directory goes to
+// Directory, and its error comes back unwrapped.
+func File(location string) (yamldiff.InputFile, error) {
 	if info, err := os.Stat(location); err == nil && info.IsDir() {
-		return LoadDirectory(location)
+		return Directory(location)
 	}
 
 	data, err := getBytesFromLocation(location)
 	if err != nil {
-		return InputFile{}, &LoadError{Op: "load", Location: location, Kind: ClassifyLocation(location), Err: err}
+		return yamldiff.InputFile{}, &Error{Op: "load", Location: location, Kind: ClassifyLocation(location), Err: err}
 	}
 
-	documents, err := LoadDocuments(data)
+	documents, err := Documents(data)
 	if err != nil {
-		return InputFile{}, &LoadError{Op: "parse", Location: location, Kind: ClassifyLocation(location), Err: err}
+		return yamldiff.InputFile{}, &Error{Op: "parse", Location: location, Kind: ClassifyLocation(location), Err: err}
 	}
 
-	return InputFile{Location: location, Documents: documents}, nil
+	return yamldiff.InputFile{Location: location, Documents: documents}, nil
 }
 
-// LoadDirectory loads every entry of a directory, in name order, as
+// Directory loads every entry of a directory, in name order, as
 // documents. Names holds one name per file.
-func LoadDirectory(location string) (InputFile, error) {
+func Directory(location string) (yamldiff.InputFile, error) {
 	files, err := os.ReadDir(location)
 	if err != nil {
-		return InputFile{}, fmt.Errorf("failed to read files in directory %s: %w", location, err)
+		return yamldiff.InputFile{}, fmt.Errorf("failed to read files in directory %s: %w", location, err)
 	}
 
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].Name() < files[j].Name()
 	})
 
-	result := InputFile{Location: location}
+	result := yamldiff.InputFile{Location: location}
 
 	for _, file := range files {
 		path := filepath.Join(location, file.Name())
 
 		data, err := getBytesFromLocation(path)
 		if err != nil {
-			return InputFile{}, err
+			return yamldiff.InputFile{}, err
 		}
 
-		docs, err := LoadDocuments(data)
+		docs, err := Documents(data)
 		if err != nil {
-			return InputFile{}, fmt.Errorf("failed to read %s: %w", path, err)
+			return yamldiff.InputFile{}, fmt.Errorf("failed to read %s: %w", path, err)
 		}
 
 		result.Documents = append(result.Documents, docs...)
@@ -192,19 +177,14 @@ func LoadDirectory(location string) (InputFile, error) {
 	return result, nil
 }
 
-// LoadDocuments reads data as TOML, JSON, or YAML, with any number of
+// Documents reads data as TOML, JSON, or YAML, with any number of
 // documents. Empty input is one null document. TOML is tried first, then
-// JSON when the first byte starts a map or list, then YAML.
-func LoadDocuments(data []byte) ([]*yamlnode.Node, error) {
-	// Empty nodes are null values (YAML 1.2.2 sections 7.2, 9.1.2, and
-	// 10.3.2).
-	if isEmpty(data) {
-		return []*yamlnode.Node{{
-			Kind: yamlnode.DocumentNode,
-			Content: []*yamlnode.Node{
-				{Kind: yamlnode.ScalarNode, Tag: yamlnode.TagNull},
-			},
-		}}, nil
+// yamldiff.ParseDocuments reads JSON or YAML.
+func Documents(data []byte) ([]*yamlnode.Node, error) {
+	// Empty input is a null document, and TOML would read it as an empty
+	// table instead.
+	if yamldiff.IsEmpty(data) {
+		return yamldiff.ParseDocuments(data)
 	}
 
 	// There is no cheap check for TOML, so trying to parse it is the test.
@@ -212,12 +192,7 @@ func LoadDocuments(data []byte) ([]*yamlnode.Node, error) {
 		return docs, nil
 	}
 
-	switch data[0] {
-	case '{', '[':
-		return loadJSONDocuments(data)
-	default:
-		return yamlnode.Parse(data)
-	}
+	return yamldiff.ParseDocuments(data)
 }
 
 // getBytesFromLocation reads stdin, a file, or a URI, in that order.
@@ -264,9 +239,4 @@ func fetchURI(location string) ([]byte, error) {
 // input, ignoring surrounding space.
 func IsStdin(location string) bool {
 	return strings.TrimSpace(location) == "-"
-}
-
-func isEmpty(data []byte) bool {
-	trimmed := strings.TrimSpace(string(data))
-	return trimmed == "" || trimmed == "---"
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/humanreport"
 	"github.com/fivetwenty-io/graft/internal/yamldiff"
+	"github.com/fivetwenty-io/graft/internal/yamldiff/load"
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
@@ -312,9 +313,9 @@ func renderFlowDiff(t *testing.T, fromText, toText string) string {
 			t.Fatal(err)
 		}
 	}
-	f, g, err := yamldiff.LoadFiles(from, to)
+	f, g, err := load.Files(from, to)
 	if err != nil {
-		t.Fatalf("LoadFiles: %v", err)
+		t.Fatalf("load.Files: %v", err)
 	}
 	report, err := yamldiff.CompareInputFiles(f, g)
 	if err != nil {
