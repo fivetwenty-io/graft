@@ -158,7 +158,7 @@ func findItem(s *yamlnode.Node, seg string) (int, string, error) {
 		if i >= uint64(len(s.Content)) {
 			return 0, "the index is past the end of the sequence", ErrPathNotFound
 		}
-		return int(i), "", nil
+		return int(i), "", nil // #nosec G115 -- i < len(s.Content), checked above
 	}
 	for _, field := range cursorpath.NameFields {
 		if i := itemWithField(s, field, seg); i >= 0 {

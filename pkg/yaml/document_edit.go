@@ -178,27 +178,17 @@ func hasByteOrderMark(src []byte) bool {
 // parser reads it and taking the token that sits at the node's TokenLine
 // and TokenColumn. It checks that those bytes read back as n.Value.
 //
-// The parser reads the input with its byte order mark taken off, with
-// every CR and U+0085 line break made LF, and with yamlprep's rewrites,
-// which can move the columns of a line. So the token's line must read
-// the same there as in d.src, or the node has no span. goccy's column is
-// also not the column in the input after a tab between tokens, so a node
-// on a line with a tab has no span either. A quoted scalar ends at its
-// closing quote, and a plain one where its token's text ends. A scalar
-// that runs past its line gives errMultiLine, and any other doubt gives
-// errInexact.
+// The token's line must be one exactLine accepts. A quoted scalar ends
+// at its closing quote, and a plain one where its token's text ends. A
+// scalar that runs past its line gives errMultiLine, and any other doubt
+// gives errInexact.
 func (d *Document) scalarSpan(n *yamlnode.Node) (span, error) {
 	line := n.TokenLine
-	if n.Kind != yamlnode.ScalarNode || line < 1 || line > len(d.lines) {
+	if n.Kind != yamlnode.ScalarNode {
 		return span{}, errInexact
 	}
-	asWritten := d.lineText(line)
-	if bytes.IndexByte(asWritten, '\t') >= 0 {
-		return span{}, errInexact
-	}
-	read, _ := yamlprep.Prepare(parsedText(d.src))
-	readLines := newLineIndex(read)
-	if line > len(readLines) || !bytes.Equal(withoutBreak(lineOf(read, readLines, line)), withoutBreak(asWritten)) {
+	read, ok := d.exactLine(line)
+	if !ok {
 		return span{}, errInexact
 	}
 	tk := tokenAt(read, line, n.TokenColumn)
@@ -209,36 +199,85 @@ func (d *Document) scalarSpan(n *yamlnode.Node) (span, error) {
 	if !ok {
 		return span{}, errInexact
 	}
-	lineEnd := d.lines[line-1] + len(withoutBreak(asWritten))
 	var end int
+	var err error
 	switch tk.Type {
 	case token.DoubleQuoteType, token.SingleQuoteType:
-		// goccy's Origin leaves out some escapes, such as \u0001, so the
-		// end of a quoted scalar is its closing quote in the input.
-		quote := byte('"')
-		if tk.Type == token.SingleQuoteType {
-			quote = '\''
-		}
-		if start >= lineEnd || d.src[start] != quote {
-			return span{}, errInexact
-		}
-		if end = closingQuote(d.src[:lineEnd], start); end < 0 {
-			return span{}, errMultiLine
-		}
+		end, err = d.quotedEnd(tk.Type, start, d.textEnd(line))
 	default:
-		text := strings.Trim(tk.Origin, " \t\r\n")
-		if strings.ContainsAny(text, "\r\n") {
-			return span{}, errMultiLine
-		}
-		end = start + len(text)
-		if text == "" || end > lineEnd || string(d.src[start:end]) != text {
-			return span{}, errInexact
-		}
+		end, err = d.plainEnd(tk.Origin, start, d.textEnd(line))
+	}
+	if err != nil {
+		return span{}, err
 	}
 	if !readsAs(string(d.src[start:end]), n.Value) {
 		return span{}, errInexact
 	}
 	return span{start, end}, nil
+}
+
+// exactLine reports whether line line of d.src is one whose columns are
+// those the parser reports, and returns d.src as the parser reads it.
+// The parser reads the input with its byte
+// order mark taken off, with every CR and U+0085 line break made LF, and
+// with yamlprep's rewrites, which can move the columns of a line. So the
+// line must read the same there as in d.src. goccy's column is also not
+// the column in the input after a tab between tokens, so the line must
+// hold no tab.
+func (d *Document) exactLine(line int) ([]byte, bool) {
+	if line < 1 || line > len(d.lines) {
+		return nil, false
+	}
+	asWritten := d.lineText(line)
+	if bytes.IndexByte(asWritten, '\t') >= 0 {
+		return nil, false
+	}
+	read, _ := yamlprep.Prepare(parsedText(d.src))
+	readLines := newLineIndex(read)
+	if line > len(readLines) || !bytes.Equal(withoutBreak(lineOf(read, readLines, line)), withoutBreak(asWritten)) {
+		return nil, false
+	}
+	return read, true
+}
+
+// textEnd returns the offset in d.src at which the text of line line
+// ends, which is where its line break starts.
+func (d *Document) textEnd(line int) int {
+	return lineStart(d.src, d.lines, line) + len(withoutBreak(d.lineText(line)))
+}
+
+// quotedEnd returns the offset just past the closing quote of the quoted
+// scalar of token type t that opens at start, on a line whose text ends
+// at lineEnd. goccy's Origin leaves out some escapes, such as \u0001, so
+// the end is found in the input rather than taken from the token.
+func (d *Document) quotedEnd(t token.Type, start, lineEnd int) (int, error) {
+	quote := byte('"')
+	if t == token.SingleQuoteType {
+		quote = '\''
+	}
+	if start >= lineEnd || d.src[start] != quote {
+		return 0, errInexact
+	}
+	end := closingQuote(d.src[:lineEnd], start)
+	if end < 0 {
+		return 0, errMultiLine
+	}
+	return end, nil
+}
+
+// plainEnd returns the offset where the plain scalar whose token text is
+// origin ends, when it opens at start on a line whose text ends at
+// lineEnd.
+func (d *Document) plainEnd(origin string, start, lineEnd int) (int, error) {
+	text := strings.Trim(origin, " \t\r\n")
+	if strings.ContainsAny(text, "\r\n") {
+		return 0, errMultiLine
+	}
+	end := start + len(text)
+	if text == "" || end > lineEnd || string(d.src[start:end]) != text {
+		return 0, errInexact
+	}
+	return end, nil
 }
 
 // closingQuote returns the offset just past the quote that closes the
