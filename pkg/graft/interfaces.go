@@ -2,6 +2,7 @@ package graft
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -618,16 +619,24 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 		}
 		if e.Call != nil {
 			call := e.Call
-			if call.where == nil && e.evaluator.Here != nil {
-				// A nested call runs at the path of the call it sits
-				// in, as evaluateNestedOperator runs one, so an
-				// operator that reads ev.Here finds that path.
+			here := e.evaluator.Here
+			if call.where == nil && here != nil {
+				// A nested call runs at the path of the call it
+				// sits in, as evaluateNestedOperator runs one, so
+				// an operator that reads ev.Here finds that path.
 				at := *call
-				at.where = e.evaluator.Here.Copy()
+				at.where = here.Copy()
 				call = &at
 			}
 			resp, err := call.Run(e.evaluator)
 			if err != nil {
+				// The call this one sits in names the same path in
+				// its own error, so only the cause is kept here and
+				// the path appears once.
+				var perr *PathError
+				if here != nil && errors.As(err, &perr) && perr.Path == here.String() {
+					err = perr.Cause
+				}
 				return nil, err
 			}
 			return resp.Value, nil
