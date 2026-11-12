@@ -81,3 +81,28 @@ func TestFlattenWaitsForTheOperatorsItReads(t *testing.T) {
 		},
 	})
 }
+
+func TestJoinWaitsForTheOperatorsItReads(t *testing.T) {
+	runTargetCases(t, []targetCase{
+		{
+			name: "sibling map holding an operator",
+			src:  "z:\n  k: (( concat \"p\" \"q\" ))\na: (( join \",\" z ))\n",
+			path: "a", want: "k:pq",
+		},
+		{
+			name: "sibling list holding an operator",
+			src:  "z:\n- x\n- (( concat \"p\" \"q\" ))\na: (( join \",\" z ))\n",
+			path: "a", want: "x,pq",
+		},
+		{
+			name:  "an ancestor map",
+			src:   "q:\n  a: (( join \",\" q ))\n",
+			cycle: true,
+		},
+		{
+			name:  "an ancestor two levels up",
+			src:   "q:\n  r:\n    a: (( join \",\" q ))\n",
+			cycle: true,
+		},
+	})
+}

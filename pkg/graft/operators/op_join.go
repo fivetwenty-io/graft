@@ -23,8 +23,13 @@ func (JoinOperator) Phase() OperatorPhase {
 	return EvalPhase
 }
 
-// Dependencies returns the nodes that (( join ... )) requires to be resolved.
-func (JoinOperator) Dependencies(ev *Evaluator, args []*Expr, _ []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
+// Dependencies returns the nodes that (( join ... )) requires to be
+// resolved. A reference argument also waits for every operator under
+// the path it names, the way stringify does, so join never reads an
+// operator's text and a read of its own ancestor is a cycle. A
+// reference on either side of a || gets only the automatic dependency,
+// as in spruce.
+func (JoinOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
 	deps := make([]*tree.Cursor, 0, len(auto))
 	deps = append(deps, auto...)
 
@@ -38,6 +43,8 @@ func (JoinOperator) Dependencies(ev *Evaluator, args []*Expr, _ []*tree.Cursor, 
 		// For reference arguments, we need to check if they point to lists
 		// and expand them to individual element dependencies
 		if arg.Type == Reference && arg.Reference != nil {
+			deps = append(deps, locsUnder(ev, arg.Reference, locs)...)
+
 			// Try to resolve to see if it's a list
 			val, err := arg.Reference.Resolve(ev.Tree)
 			val = literal.Strip(val)
