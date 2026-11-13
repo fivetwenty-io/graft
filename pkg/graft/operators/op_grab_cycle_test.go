@@ -62,20 +62,20 @@ func TestGrabOfAnAncestorIsACycle(t *testing.T) {
 	cases := []struct {
 		name, src, want string
 	}{
-		{"direct child", "q:\n  b: (( grab q ))\n", "$.q.b grabs $.q"},
-		{"deeper", "q:\n  c:\n    y: (( grab q ))\n", "$.q.c.y grabs $.q"},
-		{"two at once", "q:\n  b: (( grab q ))\n  c:\n    y: (( grab q ))\n", "grabs $.q"},
-		{"named item", "jobs:\n- name: api\n  self: (( grab jobs.api ))\n", "grabs $.jobs.api"},
-		{"indexed item", "jobs:\n- name: api\n  self: (( grab jobs.0 ))\n", "grabs $.jobs.0"},
-		{"predicate item", "jobs:\n- name: api\n  self: (( grab jobs[name=api] ))\n", "grabs $.jobs.name=api"},
-		{"second of two paths", "a: 1\nq:\n  b: (( grab a q ))\n", "$.q.b grabs $.q"},
-		{"computed path", "k: q\nq:\n  b: (( grab (( concat k \"\" )) ))\n", "$.q.b grabs $.q"},
-		{"nested in another call", "q:\n  b: (( concat \"x\" (( grab q )) ))\n", "$.q.b grabs $.q"},
-		{"bare reference after ||", "q:\n  c: (( nope || q ))\n", "$.q.c grabs $.q"},
-		{"nested grab after a bare ||", "q:\n  x: 1\n  c: (( nope || (( grab q )) ))\n", "$.q.c grabs $.q"},
-		{"bare reference on both sides of ||", "q:\n  c: (( q || q ))\n", "$.q.c grabs $.q"},
-		{"ternary branch", "q:\n  t: \"(( true ? q : 0 ))\"\n", "$.q.t grabs $.q"},
-		{"ternary branches, two edges", "q:\n  t: \"(( false ? 0 : q ))\"\n  c:\n    u: \"(( true ? q : 0 ))\"\n", "grabs $.q"},
+		{"direct child", "q:\n  b: (( grab q ))\n", "$.q.b reads $.q"},
+		{"deeper", "q:\n  c:\n    y: (( grab q ))\n", "$.q.c.y reads $.q"},
+		{"two at once", "q:\n  b: (( grab q ))\n  c:\n    y: (( grab q ))\n", "reads $.q"},
+		{"named item", "jobs:\n- name: api\n  self: (( grab jobs.api ))\n", "reads $.jobs.api"},
+		{"indexed item", "jobs:\n- name: api\n  self: (( grab jobs.0 ))\n", "reads $.jobs.0"},
+		{"predicate item", "jobs:\n- name: api\n  self: (( grab jobs[name=api] ))\n", "reads $.jobs.name=api"},
+		{"second of two paths", "a: 1\nq:\n  b: (( grab a q ))\n", "$.q.b reads $.q"},
+		{"computed path", "k: q\nq:\n  b: (( grab (( concat k \"\" )) ))\n", "$.q.b reads $.q"},
+		{"nested in another call", "q:\n  b: (( concat \"x\" (( grab q )) ))\n", "$.q.b reads $.q"},
+		{"bare reference after ||", "q:\n  c: (( nope || q ))\n", "$.q.c reads $.q"},
+		{"nested grab after a bare ||", "q:\n  x: 1\n  c: (( nope || (( grab q )) ))\n", "$.q.c reads $.q"},
+		{"bare reference on both sides of ||", "q:\n  c: (( q || q ))\n", "$.q.c reads $.q"},
+		{"ternary branch", "q:\n  t: \"(( true ? q : 0 ))\"\n", "$.q.t reads $.q"},
+		{"ternary branches, two edges", "q:\n  t: \"(( false ? 0 : q ))\"\n  c:\n    u: \"(( true ? q : 0 ))\"\n", "reads $.q"},
 	}
 	for _, tc := range cases {
 		for _, parallel := range []bool{true, false} {

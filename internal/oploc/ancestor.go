@@ -92,7 +92,8 @@ func holds(val, o interface{}, key string) bool {
 }
 
 // cycleError is the error both guards return. It names the two paths and
-// quotes no value.
+// quotes no value. It says "reads" because a grab, a ternary, and a bare
+// || reference all reach it.
 func cycleError(here, target *tree.Cursor) error {
-	return fmt.Errorf("cycle detected: $.%s grabs $.%s, which contains it", here, target)
+	return fmt.Errorf("cycle detected: $.%s reads $.%s, which contains it", here, target)
 }

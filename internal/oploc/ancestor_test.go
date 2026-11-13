@@ -25,10 +25,10 @@ func TestRefuseAncestor(t *testing.T) {
 		here, target string
 		want         string
 	}{
-		{"q.b", "q", "cycle detected: $.q.b grabs $.q, which contains it"},
-		{"q.l.1", "q.l", "cycle detected: $.q.l.1 grabs $.q.l, which contains it"},
-		{"jobs.api.self", "jobs.0", "cycle detected: $.jobs.api.self grabs $.jobs.0, which contains it"},
-		{"jobs.0.self", "jobs.name=api", "cycle detected: $.jobs.0.self grabs $.jobs.name=api, which contains it"},
+		{"q.b", "q", "cycle detected: $.q.b reads $.q, which contains it"},
+		{"q.l.1", "q.l", "cycle detected: $.q.l.1 reads $.q.l, which contains it"},
+		{"jobs.api.self", "jobs.0", "cycle detected: $.jobs.api.self reads $.jobs.0, which contains it"},
+		{"jobs.0.self", "jobs.name=api", "cycle detected: $.jobs.0.self reads $.jobs.name=api, which contains it"},
 		{"qa.x", "q", ""},
 		{"q.b", "q.a", ""},
 		{"q.b", "q.b", ""},
@@ -56,10 +56,10 @@ func TestRefuseSelfHolding(t *testing.T) {
 		val  interface{}
 		want string
 	}{
-		{"its own map", "q.b", q, "$.q.b grabs $.q"},
-		{"its own map in a literal", "q.b", literal.Wrap(q), "$.q.b grabs $.q"},
-		{"its own list", "q.l.1", l, "$.q.l.1 grabs $.q.l"},
-		{"the map above its list", "q.l.1", q, "$.q.l.1 grabs $.q"},
+		{"its own map", "q.b", q, "$.q.b reads $.q"},
+		{"its own map in a literal", "q.b", literal.Wrap(q), "$.q.b reads $.q"},
+		{"its own list", "q.l.1", l, "$.q.l.1 reads $.q.l"},
+		{"the map above its list", "q.l.1", q, "$.q.l.1 reads $.q"},
 		{"another map", "qa.x", q, ""},
 		{"a copy", "q.b", map[string]interface{}{"a": 1}, ""},
 		{"an empty list", "q.l.1", []interface{}{}, ""},
@@ -88,12 +88,12 @@ func TestRefuseSelfHoldingReslices(t *testing.T) {
 		val  interface{}
 		want string
 	}{
-		{"the whole list", "l.2", arr, "$.l.2 grabs $.l"},
+		{"the whole list", "l.2", arr, "$.l.2 reads $.l"},
 		{"a prefix that stops short", "l.2", arr[:2], ""},
-		{"a prefix that holds the entry", "l.2", arr[:3], "$.l.2 grabs $.l"},
-		{"a suffix that holds the entry", "l.2", arr[1:], "$.l.2 grabs $.l"},
+		{"a prefix that holds the entry", "l.2", arr[:3], "$.l.2 reads $.l"},
+		{"a suffix that holds the entry", "l.2", arr[1:], "$.l.2 reads $.l"},
 		{"a suffix that starts after it", "l.2", arr[3:], ""},
-		{"a suffix under the entry", "l.2.x", arr[1:], "$.l.2.x grabs $.l"},
+		{"a suffix under the entry", "l.2.x", arr[1:], "$.l.2.x reads $.l"},
 		{"a copy", "l.2", append([]interface{}(nil), arr...), ""},
 	}
 	for _, tc := range cases {

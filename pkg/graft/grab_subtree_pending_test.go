@@ -150,7 +150,7 @@ func TestGrabOfOwnAncestorFailsAsACycle(t *testing.T) {
 					t.Fatal("Execute succeeded, want a cycle error")
 				}
 				msg := err.Error()
-				want := "cycle detected: $." + tc.grab + " grabs $." + tc.target + ", which contains it"
+				want := "cycle detected: $." + tc.grab + " reads $." + tc.target + ", which contains it"
 				if !strings.Contains(msg, want) {
 					t.Fatalf("error %q does not say %q", msg, want)
 				}
