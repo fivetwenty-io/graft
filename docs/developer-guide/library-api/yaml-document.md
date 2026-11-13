@@ -182,6 +182,8 @@ The first version is deliberately narrow, and it stays on the safe side whenever
 
 - It refuses carriage returns and tabs on a line an edit touches. `Set` also refuses tagged and anchored values, and `Delete` refuses an anchor that an alias still needs.
 
+- It refuses to set a plain scalar that has spaces after it at the end of its line, and the error reports that as "the value's source position is not exact". Removing the trailing spaces lets the edit through.
+
 - It doesn't expand a `<<` merge, so it edits the document as written.
 
 When a refusal blocks an edit we need, the answer is usually to make the change by hand or to read the file with `Unmarshal` and write it back with `Marshal`, accepting that the second route rewrites the layout.
