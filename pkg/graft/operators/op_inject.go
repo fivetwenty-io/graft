@@ -39,15 +39,16 @@ func (InjectOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cur
 			if arg.Reference == nil || len(locs) == 0 {
 				continue
 			}
-			// A reference that does not resolve gives no dependencies
-			// at all, as it always has.
+			// A reference that does not resolve gives no
+			// dependencies at all, as it always has.
 			canon, err := arg.Reference.Canonical(ev.Tree)
 			if err != nil {
 				return []*tree.Cursor{}
 			}
-			// The operators strictly under the map, from the index
-			// the evaluator builds for the phase, so the cost is the
-			// paths returned rather than every operator's path.
+			// The operators strictly under the map, from the
+			// index the evaluator builds for the phase, so the
+			// cost is the paths returned rather than every
+			// operator's path.
 			if len(canon.Nodes) > 0 {
 				idx := oploc.For(ev, locs, ev.Tree)
 				l = append(l, idx.Under(canon.Nodes, canon.Nodes)...)

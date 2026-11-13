@@ -177,14 +177,12 @@ type Engine interface {
 	// array marker, such as (( append )), and removes each (( prune ))
 	// entry, and an index into a list counts only the entries that
 	// stay. It returns the merger's error for a marker a merge refuses.
-	// It resolves
-	// the operators in doc itself, and removes the keys they prune from
-	// doc itself, so doc must not be used by another call while
-	// Evaluate runs, and holds the evaluated result once it returns. A
-	// caller that needs the document as it was should pass
-	// doc.Clone(). Concurrent
-	// Evaluate calls on one engine are safe; each keeps its own
-	// operator state (see the Engine doc comment).
+	// It resolves the operators in doc itself, and removes the keys
+	// they prune from doc itself, so doc must not be used by another
+	// call while Evaluate runs, and holds the evaluated result once it
+	// returns. A caller that needs the document as it was should pass
+	// doc.Clone(). Concurrent Evaluate calls on one engine are safe;
+	// each keeps its own operator state (see the Engine doc comment).
 	Evaluate(ctx context.Context, doc Document) (Document, error)
 
 	// Diff computes the differences between a and b using
