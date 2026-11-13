@@ -312,8 +312,8 @@ func TestPointerKeysWithEqualValuesAreRefused(t *testing.T) {
 		{"a hook on the earlier key only", "1: a\n0x1: ~\n", ints, "map[*int]yaml_test.gapHook", 2, yaml.DecodeOptions{}},
 		{"a hook on the later key only", "1: ~\n0x1: b\n", ints, "map[*int]yaml_test.gapHook", 2, yaml.DecodeOptions{}},
 		{"bool keys", "true: alpha\nTrue: bravo\n", func() any { return new(map[*bool]gapHook) }, "map[*bool]yaml_test.gapHook", 2, yaml.DecodeOptions{YAML12: true}},
-		// An alias expands to its anchor's own node, so the refusal names
-		// the line of the anchor's key.
+		// An alias expands to its anchor's own node, so the refusal
+		// names the line of the anchor's key.
 		{"an alias key", "&k 1: a\n*k : b\n", ints, "map[*int]yaml_test.gapHook", 1, yaml.DecodeOptions{}},
 		{"zero and negative zero", "-0.0: a\n0.0: b\n", func() any { return new(map[*float64]gapHook) }, "map[*float64]yaml_test.gapHook", 2, yaml.DecodeOptions{}},
 		{"an inner map", "x:\n  1: a\n  0x1: b\n", func() any { return new(map[*string]map[*int]gapHook) }, "map[*int]yaml_test.gapHook", 3, yaml.DecodeOptions{}},
@@ -590,8 +590,8 @@ func TestReportedRepeatKeepsKeysSpelledApart(t *testing.T) {
 			func() any { return new(map[string]map[any]string) }},
 		{"a map beside a hooked field", "n: q\nm:\n  true: a\n  'true': b\n",
 			func() any { return new(spelledAny) }, func() any { return new(spelledAnyPlain) }},
-		// These keys are spelled apart, so nothing is reported, and they
-		// passed before.
+		// These keys are spelled apart, so nothing is reported, and
+		// they passed before.
 		{"a null and the string ~", "~: a\n\"~\": b\n", anys, anysPlain},
 		{"an int and a float", "1: a\n1.0: b\n", anys, anysPlain},
 	})

@@ -53,9 +53,10 @@ func TestLibraryDiffMatchesTheCommand(t *testing.T) {
 			}
 			var buf bytes.Buffer
 			style := yaml.ReportStyle{Color: m.opts.Color, TrueColor: m.opts.TrueColor, Width: m.opts.Width}
-			// graft diff prints what it rendered and ignores a render
-			// error that isn't fatal, as with a binary value that isn't
-			// base64. Write returns that error after the same output.
+			// graft diff prints what it rendered and ignores a
+			// render error that isn't fatal, as with a binary value
+			// that isn't base64. Write returns that error after the
+			// same output.
 			var diffErr *yaml.DiffError
 			if err := r.Write(&buf, style); err != nil {
 				fatal := errors.As(err, &diffErr)
