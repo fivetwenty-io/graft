@@ -33,6 +33,7 @@ Each case is a directory under `fixtures/<operator>/<case-name>/`:
 | `verb` | no | CLI verb to run (default `merge`); e.g. `vaultinfo`, `json` |
 | `mode` | no | `structural` for order-independent comparison (see below); default is byte-exact |
 | `expect-divergence` | no | Free-text reason; presence turns a mismatch into an `INFO` line instead of `FAIL` |
+| `expect-graft` | no | With `expect-divergence`, the exact stdout graft must print, without a leading `---`; any other output is a `FAIL` |
 
 Directories prefixed with `_` (e.g. `fixtures/file/_support/`) hold support
 data referenced by a case's `env` file rather than a runnable case, and are

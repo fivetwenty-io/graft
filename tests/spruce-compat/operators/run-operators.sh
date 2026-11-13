@@ -140,6 +140,17 @@ run_case() {
     return
   fi
 
+  # expect-graft pins graft's own stdout for a documented divergence, so
+  # the case still fails when graft's output changes.
+  if [ -n "$divergence_note" ] && [ -f "$case_dir/expect-graft" ] &&
+     ! diff -q "$g_out" "$case_dir/expect-graft" >/dev/null 2>&1; then
+    echo "FAIL  $op/$case_name diverges from its expect-graft output"
+    diff "$g_out" "$case_dir/expect-graft" | sed 's/^/      /' || true
+    FAIL=$((FAIL + 1))
+    rm -f "$g_out" "$g_err" "$s_out" "$s_err"
+    return
+  fi
+
   if [ -n "$divergence_note" ]; then
     echo "INFO  $op/$case_name diverges from spruce (documented, not a regression): $divergence_note"
     INFO=$((INFO + 1))
