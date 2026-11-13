@@ -49,6 +49,63 @@ type PathElement struct {
 	Idx  int
 	Key  string
 	Name string
+
+	// id is the identifier that named a named-list entry.
+	id listItemIdentifier
+}
+
+// Step returns the node e names in n, following an alias, the way the
+// comparison found it. from says n is on the from side, where a map
+// entry is matched by its key as written, and not through an alias. It
+// reports false when n holds no such node, or more than one.
+func (e PathElement) Step(n *yamlnode.Node, from bool) (*yamlnode.Node, bool) {
+	n = yamlnode.FollowAlias(n)
+	if n == nil {
+		return nil, false
+	}
+	var found *yamlnode.Node
+	switch {
+	case e.Key != "":
+		if e.id == nil || n.Kind != yamlnode.SequenceNode {
+			return nil, false
+		}
+		for _, entry := range n.Content {
+			name, err := e.id.Name(entry)
+			if err != nil || name != e.Name {
+				continue
+			}
+			if found != nil {
+				return nil, false
+			}
+			found = entry
+		}
+	case e.Idx >= 0:
+		if n.Kind != yamlnode.SequenceNode || e.Idx >= len(n.Content) {
+			return nil, false
+		}
+		found = n.Content[e.Idx]
+	default:
+		if n.Kind != yamlnode.MappingNode {
+			return nil, false
+		}
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			k := n.Content[i]
+			if !from {
+				k = yamlnode.FollowAlias(k)
+			}
+			if k.Value != e.Name {
+				continue
+			}
+			if found != nil {
+				return nil, false
+			}
+			found = n.Content[i+1]
+		}
+	}
+	if found == nil {
+		return nil, false
+	}
+	return yamlnode.FollowAlias(found), true
 }
 
 // Path points to a section of a document by naming each step from the
@@ -134,10 +191,12 @@ func NewPathWithNamedElement(path Path, name interface{}) Path {
 
 // NewPathWithNamedListElement returns path extended by a named-list entry.
 func NewPathWithNamedListElement(path Path, identifier, name interface{}) Path {
+	id, _ := identifier.(listItemIdentifier)
 	return NewPathWithPathElement(path, PathElement{
 		Idx:  -1,
 		Key:  fmt.Sprintf("%v", identifier),
 		Name: fmt.Sprintf("%v", name),
+		id:   id,
 	})
 }
 

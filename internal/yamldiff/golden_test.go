@@ -49,7 +49,7 @@ func toGoldenReport(r Report) goldenReport {
 			gd.Dot, gd.GoPatch, gd.Root = d.Path.ToDotStyle(), d.Path.ToGoPatchStyle(), d.Path.RootDescription()
 			gd.DocumentIdx, gd.NilElements = d.Path.DocumentIdx, d.Path.PathElements == nil
 			for _, e := range d.Path.PathElements {
-				gd.Elements = append(gd.Elements, goldenElem(e))
+				gd.Elements = append(gd.Elements, goldenElem{Idx: e.Idx, Key: e.Key, Name: e.Name})
 			}
 		}
 		for _, det := range d.Details {

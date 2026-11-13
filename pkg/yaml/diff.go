@@ -158,7 +158,8 @@ func Diff(a, b []byte, opts *DiffOptions) (*DiffReport, error) {
 	for _, d := range report.Diffs {
 		document, path := -1, ""
 		if d.Path != nil {
-			document, path = d.Path.DocumentIdx, diffPath(d.Path.PathElements)
+			document = d.Path.DocumentIdx
+			path = diffPath(d.Path.PathElements, diffRoots(report, d.Path))
 		}
 		for _, detail := range d.Details {
 			changes = append(changes, Change{
@@ -205,20 +206,130 @@ func changeKind(k yamldiff.DetailKind) ChangeKind {
 	return ChangeModified
 }
 
-// diffPath spells a path in graft's cursor syntax.
-func diffPath(elements []yamldiff.PathElement) string {
-	parts := make([]string, len(elements))
-	for i, e := range elements {
-		switch {
-		case e.Key != "":
-			parts[i] = e.Key + "=" + e.Name
-		case e.Name != "":
-			parts[i] = cursorpath.Quote(e.Name)
-		default:
-			parts[i] = strconv.Itoa(e.Idx)
+// diffRoot is a document a change's path is checked against, and the
+// side of the comparison it is on.
+type diffRoot struct {
+	node *yamlnode.Node
+	from bool
+}
+
+// diffRoots returns the documents that path, a path the comparison
+// walked, must name the same node in. A path with elements always
+// starts in a from document. The to document is known only when the
+// documents met by position, which is when the inputs carry no names.
+func diffRoots(report yamldiff.Report, path *yamldiff.Path) []diffRoot {
+	if len(path.PathElements) == 0 || path.Root == nil {
+		return nil
+	}
+	var roots []diffRoot
+	if doc := documentValue(path.Root.Documents, path.DocumentIdx); doc != nil {
+		roots = append(roots, diffRoot{node: doc, from: true})
+	}
+	if len(report.To.Names) == 0 {
+		if doc := documentValue(report.To.Documents, path.DocumentIdx); doc != nil {
+			roots = append(roots, diffRoot{node: doc})
 		}
 	}
+	return roots
+}
+
+// documentValue returns the value of the document at idx in docs, or nil.
+func documentValue(docs []*yamlnode.Node, idx int) *yamlnode.Node {
+	if idx < 0 || idx >= len(docs) {
+		return nil
+	}
+	doc := docs[idx]
+	if doc.Kind == yamlnode.DocumentNode {
+		if len(doc.Content) == 0 {
+			return nil
+		}
+		doc = doc.Content[0]
+	}
+	return doc
+}
+
+// diffPath spells a path in graft's cursor syntax, so that Document
+// reads it as naming the node the comparison found in each of roots. A
+// segment the syntax can't spell, or one that Document would read as a
+// different node, is written with a leading ']'. Every segment before it
+// is well formed, so Document refuses the whole path as invalid rather
+// than reading it as some other node.
+func diffPath(elements []yamldiff.PathElement, roots []diffRoot) string {
+	parts := make([]string, len(elements))
+	steps := make([]string, len(elements))
+	bad := -1
+	for i, e := range elements {
+		step, ok := pathStep(e, i == 0)
+		steps[i] = step
+		parts[i] = cursorpath.Quote(step)
+		if !ok && bad < 0 {
+			bad = i
+			parts[i] = step
+		}
+	}
+	if bad < 0 {
+		for _, root := range roots {
+			if i := wrongStep(root, elements, steps); i >= 0 && (bad < 0 || i < bad) {
+				bad = i
+			}
+		}
+	}
+	if bad >= 0 {
+		parts[bad] = "]" + parts[bad]
+	}
 	return strings.Join(parts, ".")
+}
+
+// pathStep returns the segment Document reads as e, before any quoting,
+// and whether the cursor syntax can spell it. first says e is the
+// path's first element, where a lone "$" names the root.
+func pathStep(e yamldiff.PathElement, first bool) (string, bool) {
+	switch {
+	case e.Key != "":
+		step := e.Key + "=" + e.Name
+		field, value, ok := cursorpath.Predicate(step)
+		return step, ok && field == e.Key && value == e.Name &&
+			!strings.ContainsAny(step, "[]")
+	case e.Idx >= 0:
+		return strconv.Itoa(e.Idx), true
+	}
+	return e.Name, e.Name != "" && !strings.ContainsAny(e.Name, "[]") &&
+		!(first && e.Name == "$")
+}
+
+// wrongStep walks steps through root as Document does, beside the
+// comparison's own walk of elements, and returns the index of the first
+// step that reaches a different node, or -1. A step Document can't take
+// at all ends the walk with -1, since Document then refuses the path.
+func wrongStep(root diffRoot, elements []yamldiff.PathElement, steps []string) int {
+	cur := root.node
+	for i, e := range elements {
+		want, ok := e.Step(cur, root.from)
+		if !ok {
+			return i
+		}
+		cur = yamlnode.FollowAlias(cur)
+		var (
+			idx int
+			err error
+		)
+		switch cur.Kind {
+		case yamlnode.MappingNode:
+			idx, _, err = findKey(cur, steps[i])
+		case yamlnode.SequenceNode:
+			idx, _, err = findItem(cur, steps[i])
+		default:
+			return -1
+		}
+		if err != nil {
+			return -1
+		}
+		if yamlnode.FollowAlias(cur.Content[idx]) != want {
+			return i
+		}
+		cur = want
+	}
+	return -1
 }
 
 // newDiffConverter returns a converter for the nodes read from src.

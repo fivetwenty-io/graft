@@ -62,7 +62,9 @@ type Change struct {
 
 `Document` is the index of the document in the stream, counting from 0, or -1 for a change in the order of named Kubernetes resources. No other change has a document index of -1.
 
-`Path` locates the change in the cursor syntax that [Editing a File](yaml-document.md#paths) describes. It reads `j.name=web.p` for a field of the list entry named `web`, and `m.[a.b]` for a key that holds a dot. A change at the top of a document has an empty path.
+`Path` locates the change in the cursor syntax that [Editing a File](yaml-document.md#paths) describes. It reads `j.name=web.p` for a field of the list entry named `web`, `m.[a.b]` for a key that holds a dot, and `j.[name=a.b].p` for a list entry whose name holds a dot. A change at the top of a document has an empty path. A `Document` that reads the input reads the path as the value the change is about, so `doc.Set(c.Path, v)` edits that value and no other.
+
+Some names can't be written in the cursor syntax. These are an empty key, a key or a name that holds `[` or `]`, a top-level key that is just `$`, and a Kubernetes resource in a list, which has no single field that names it. A name that the syntax would read as a different value, such as an alias key whose anchor name is also a key of the same map, is treated the same way. The path segment for such a name starts with `]`, so `Get`, `Set`, `Delete`, and `Editable` refuse the whole path with `ErrInvalidPath` rather than act on some other value. The rest of the path is still there for a person to read.
 
 `From` and `To` hold the nodes on either side. A `Node` that is missing on one side is nil.
 
