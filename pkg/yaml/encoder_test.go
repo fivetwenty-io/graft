@@ -134,3 +134,29 @@ func TestEncoderReportsWriterAndCloseErrors(t *testing.T) {
 		t.Error("indent 1: got no error")
 	}
 }
+
+func TestEncoderStreamIsMarshalPlusSeparators(t *testing.T) {
+	values := []any{map[string]any{"a": 1}, "s", nil, []any{1, "x\ny"}, yaml.MapSlice{{Key: "b", Value: 1}, {Key: "a", Value: 2}}}
+	opts := yaml.EncodeOptions{Indent: 3}
+	var want bytes.Buffer
+	for i, v := range values {
+		doc, err := yaml.MarshalWith(v, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i > 0 {
+			want.WriteString("---\n")
+		}
+		want.Write(doc)
+	}
+	var got bytes.Buffer
+	enc := yaml.NewEncoderWith(&got, opts)
+	for _, v := range values {
+		if err := enc.Encode(v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got.String() != want.String() {
+		t.Errorf("stream:\n%q\nwant\n%q", got.String(), want.String())
+	}
+}

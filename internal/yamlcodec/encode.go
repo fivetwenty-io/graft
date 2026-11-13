@@ -103,6 +103,8 @@ type Layout struct {
 	// IndentSequence writes a sequence under a mapping key Indent columns
 	// past the key, and a root sequence Indent columns in.
 	IndentSequence bool
+	// DocumentStart writes a "---" line before the document.
+	DocumentStart bool
 }
 
 // indent is the indent the layout asks for, with the zero value read as 2.
@@ -146,6 +148,9 @@ func marshalYAML(v interface{}, comments []YAMLHeadComment, less func(a, b strin
 	}
 
 	var buf bytes.Buffer
+	if layout.DocumentStart {
+		buf.WriteString("---\n")
+	}
 	ye := yaml.NewEncoder(&buf, opts...)
 	if err := ye.Encode(prepared); err != nil {
 		return nil, err
