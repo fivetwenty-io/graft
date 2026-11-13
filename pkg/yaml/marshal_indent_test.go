@@ -101,8 +101,8 @@ func TestMarshalWithIndentPlacesGraftScalars(t *testing.T) {
 			for i, l := range lines {
 				if strings.HasPrefix(l, strings.Repeat(" ", opts.Indent)+"long: ") {
 					matched++
-					// Every folded line continues at the key's
-					// column plus the indent.
+					// Every folded line continues at
+					// the key's column plus the indent.
 					want := strings.Repeat(" ", 2*opts.Indent)
 					for j := i + 1; j < len(lines) && strings.HasPrefix(lines[j], want) && !strings.Contains(lines[j], ": "); j++ {
 						if !strings.HasPrefix(lines[j], want+"word") {

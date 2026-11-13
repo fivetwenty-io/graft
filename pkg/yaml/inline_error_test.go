@@ -190,8 +190,8 @@ func TestInlineMapErrorSurvivesAPanickingMethod(t *testing.T) {
 		{name: "padded", pad: 20, line: 3},
 		// Without them the first probe cuts the ring short, and the
 		// search keeps the error of the longest prefix. That names
-		// second's bad value, and the answer is the same every run only
-		// because each inline map holds a single bad value.
+		// second's bad value, and the answer is the same every run
+		// only because each inline map holds a single bad value.
 		{name: "unpadded", pad: 0, line: 15},
 	}
 	for _, tc := range cases {
