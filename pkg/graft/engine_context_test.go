@@ -236,6 +236,19 @@ func TestOutputAndDiffContextVariants(t *testing.T) {
 	if r != nil || !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "diff stopped") {
 		t.Errorf("DiffContext canceled: %v, %v", r, err)
 	}
+
+	late, stop := context.WithDeadline(context.Background(), time.Unix(0, 0))
+	defer stop()
+	for name, call := range map[string]func() error{
+		"ToYAMLContext":       func() error { _, err := engine.ToYAMLContext(late, a.Clone()); return err },
+		"ToJSONContext":       func() error { _, err := engine.ToJSONContext(late, a.Clone()); return err },
+		"ToJSONIndentContext": func() error { _, err := engine.ToJSONIndentContext(late, a.Clone(), " "); return err },
+		"DiffContext":         func() error { _, err := engine.DiffContext(late, a, b, nil); return err },
+	} {
+		if err := call(); !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("%s past its deadline: %v", name, err)
+		}
+	}
 }
 
 func TestOutputContextKeepsNilDocumentError(t *testing.T) {
@@ -251,6 +264,15 @@ func TestOutputContextKeepsNilDocumentError(t *testing.T) {
 	}
 	if _, err := engine.ToJSONIndentContext(context.Background(), nil, " "); err == nil {
 		t.Error("ToJSONIndentContext(nil) returned no error")
+	}
+	// DiffContext refuses a nil document, while DiffWithOptions reads
+	// one as empty and keeps the result it always gave.
+	b := mustParseYAMLDoc(t, engine, "a: 1\n")
+	if r, err := engine.DiffContext(context.Background(), nil, b, nil); err == nil || r != nil {
+		t.Errorf("DiffContext(nil) = %v, %v, want an error", r, err)
+	}
+	if r := engine.DiffWithOptions(nil, b, nil); r == nil || r.HasChanges() {
+		t.Errorf("DiffWithOptions(nil) = %v, want an empty result", r)
 	}
 }
 

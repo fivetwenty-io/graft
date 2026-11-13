@@ -134,7 +134,8 @@ func (c *contextReader) Read(p []byte) (int, error) {
 
 // DiffContext is DiffWithOptions under ctx. It checks ctx before and
 // after the comparison, and a canceled ctx yields a nil DiffResult and an
-// error that wraps ctx.Err().
+// error that wraps ctx.Err(). A nil document yields a nil DiffResult and
+// an error, where DiffWithOptions gives an empty result.
 func (e *DefaultEngine) DiffContext(ctx context.Context, a, b Document, opts *DiffOptions) (DiffResult, error) {
 	ctx = orBackground(ctx)
 	if err := stopped(ctx, "diff", "comparing the documents"); err != nil {
