@@ -173,7 +173,9 @@ func TestNaNStandInsSkipTakenFloats(t *testing.T) {
 // costs about what a plain decode of it costs, since each NaN key's
 // stand-in search resumes where the last one ended. A search that
 // started over at the largest float for each key, and checked each
-// float against every key, took over a minute here.
+// float against every key, took over a minute here. A quadratic search
+// hides behind goccy's cost here, and TestStandInSearchCostIsLinear
+// catches it.
 func TestNaNKeysCostIsLinear(t *testing.T) {
 	if testing.Short() {
 		t.Skip("decodes 4000 NaN keys")
