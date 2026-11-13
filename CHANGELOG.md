@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.48.0] - 2026-11-13
+
 This release adds two things to `pkg/yaml` that a program needs in order to edit and compare YAML files without importing goccy. It adds `yaml.Document`, which changes a value in a file and leaves every other byte alone, and `yaml.Diff`, which compares two inputs the way `graft diff` does. It also adds Context variants of eight `Engine` methods, so a caller can cancel a parse, a comparison, or an output step. The release closes several defects in the decoder and the evaluator as well, and some of those change output or turn a silent wrong result into an error, so please read the Changed and Fixed sections before you upgrade.
 
 ### Added
@@ -1456,6 +1458,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.48.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.48.0
 [1.47.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.47.0
 [1.46.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.46.0
 [1.45.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.2
