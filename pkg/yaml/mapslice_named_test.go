@@ -27,14 +27,15 @@ func TestMarshalRefusalText(t *testing.T) {
 		v      any
 		prefix string
 	}{
-		{yaml.MapSlice{{Key: "a", Value: 1}, {Key: "a", Value: 2}}, "Marshal does not support a key repeated in a yaml.MapSlice, which "},
-		// A MapSlice key is an any, so the text names that static type.
-		{yaml.MapSlice{{Key: map[string]int{"a": 1}, Value: 1}}, "Marshal does not support a map key of Go type interface {}, which "},
-		{self, "Marshal does not support a cycle, which "},
+		{yaml.MapSlice{{Key: "a", Value: 1}, {Key: "a", Value: 2}}, "yaml: Marshal does not support a key repeated in a yaml.MapSlice, which "},
+		// A key held in an any is named by the type it holds.
+		{yaml.MapSlice{{Key: map[string]int{"a": 1}, Value: 1}}, "yaml: Marshal does not support a map key of Go type map[string]int, which "},
+		{map[any]int{[2]int{1, 2}: 1}, "yaml: Marshal does not support a map key of Go type [2]int, which "},
+		{self, "yaml: Marshal does not support a cycle, which "},
 	}
 	for _, c := range cases {
 		_, err := yaml.Marshal(c.v)
-		if err == nil || !strings.Contains(err.Error(), c.prefix) {
+		if err == nil || !strings.HasPrefix(err.Error(), c.prefix) {
 			t.Errorf("Marshal(%T) = %v, want %q", c.v, err, c.prefix)
 			continue
 		}
