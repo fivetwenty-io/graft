@@ -171,14 +171,6 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Impact.** The exit code and the failure are the same in both tools, and only the text on stderr differs. A script that matches spruce's error text won't match graft's, and a log that keeps stderr can hold the lines the snippet quotes. Dropping the snippet would make graft's errors harder to read, so we have not changed it yet.
 
-### tagged-merge-keys-fail-to-parse
-
-**Current behavior.** Two shapes of a tagged `<<` key fail to parse in `graft merge` and `pkg/yaml`, which are `? !!merge <<` and `!!str <<:`. The shape `!!merge <<: {a: 1}` merges, but `? !!merge <<` on one line with its value on the next fails with "could not find merge key", and `!!str <<: {a: 1}` fails with "unexpected scalar value". goccy's parser expects a merge key after a tag in those places, and its scanner reads neither `<<` as one.
-
-**Expected behavior.** spruce merges `{a: 1}` for `? !!merge <<`, and it reads `!!str <<` as an ordinary key named `<<`.
-
-**Impact.** Both shapes fail loudly, so graft never gives different output for them. A template that writes a tag on a merge key has to drop the tag, or write the plain `<<:` form, before graft reads it.
-
 ### pkg-yaml-array-target-refuses-extra-items
 
 **Current behavior.** `yaml.Unmarshal` into a Go array target fails when the document holds more items than the array does, so `[1, 2, 3]` into a `[2]int` returns the error "cannot decode into Go value of type *[2]int". The target stays at its zero value. This holds in 1.46.0 and later releases of `pkg/yaml`.
@@ -187,13 +179,121 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Impact.** The decode fails loudly, so no data is dropped. A caller that matches the error text sees graft's wording.
 
-### pkg-yaml-tagged-mapping-into-struct-fails
+### pkg-yaml-array-target-accepts-fewer-items
 
-**Current behavior.** `yaml.Unmarshal` into a struct fails on a mapping that carries a tag, such as `!foo {a: 1}`, with "tag was used where mapping is expected". The same happens for a tagged mapping that sits under a field of the struct. This holds in 1.46.0 and later releases of `pkg/yaml`.
+**Current behavior.** `yaml.Unmarshal` into a Go array target succeeds when the document holds fewer items than the array does, so `[1]` into a `[2]int` gives `[1 0]`. The missing items keep their zero values.
 
-**Expected behavior.** yaml.v3 ignores a custom tag on a mapping and fills the struct from its keys, so `!foo {a: 1}` gives `a` the value 1.
+**Expected behavior.** yaml.v3 refuses it with "invalid array: want 2 elements but got 1".
 
-**Impact.** The decode fails loudly, so no value is read wrongly. A document that tags a mapping with a custom tag has to drop the tag before a struct target can read it.
+**Impact.** We keep goccy's behavior in 1.48.0, so that no decode that works today starts failing. A caller that needs the exact length has to check it after the decode.
+
+### more-tagged-merge-key-shapes-fail-to-parse
+
+**Current behavior.** Three shapes of a tagged `<<` still fail to parse in `graft merge` and `pkg/yaml`, with "could not find merge key". They are `[!!merge <<]` as a value in a flow sequence, as in `x: [!!merge <<]`, an explicit key that carries an anchor before the tag, as in `? &k !!merge <<`, and a `!!str <<` whose colon sits on the next line. The forms `? !!merge <<` on one line with its value on the next, `!!merge <<:`, and `!!str <<:` all work in 1.48.0.
+
+**Expected behavior.** spruce reads `[!!merge <<]` as a list that holds the string `<<`. For the other shapes it merges the map for a `!!merge` key and reads a `!!str <<` key as an ordinary key.
+
+**Impact.** All three shapes fail loudly, so graft never gives different output for them, and all three behave as they did in 1.47.0. A template has to drop the tag, or write the plain `<<:` form.
+
+### pkg-yaml-document-edit-limits
+
+**Current behavior.** `yaml.Document` makes an edit only when it can prove that no other byte changes, and a few shapes stay outside what it can prove. A `|+` block scalar at the very end of the input reads as the single value `"\n"`, so `Set` with `"\n"` there changes nothing. A clip block scalar at the end of an input with no final line break accepts only the empty string from `Set`. A block scalar with an empty body, as in the sequence item `- a: |`, is refused. `Delete` of a `|+` entry leaves its trailing blank lines behind. `Delete` refuses an entry that holds a `#` line inside a multi-line quoted scalar, an entry with continuation lines that aren't indented, and an entry whose foot comment the parser attaches to the value node. `Delete` of a key that overrides a key brought in by `<<` removes the override and so reveals the merged value.
+
+**Expected behavior.** A complete editor would handle each shape, and the `|+` leftovers would go with the entry.
+
+**Impact.** Every shape but the last either changes nothing or fails with an error, and the error leaves the bytes as they were. The last one does what the call asked for, since removing the override is the point of the delete. The page [Editing a File with yaml.Document](../developer-guide/library-api/yaml-document.md) lists every refusal.
+
+### pkg-yaml-diff-write-returns-binary-error-after-output
+
+**Current behavior.** `DiffReport.Write` returns the error for a changed `!!binary` value whose base64 text doesn't decode, and it returns it after it has written the rest of the report. The writer holds partial output.
+
+**Expected behavior.** The `graft diff` command swallows the same error and prints the report as far as it can.
+
+**Impact.** We chose to show a library caller the error, because a caller that sees none can't tell that part of the report is missing. A caller that wants the command's behavior can ignore an error that isn't a `*yaml.DiffError`.
+
+### context-calls-cancel-after-running-operators
+
+**Current behavior.** A canceled context stops evaluation between operators, and it doesn't interrupt an operator that is already running. In parallel mode, a wave waits for the operators it has running before it returns, because returning sooner would leave an operator writing into the tree while the caller reads it. The delay is as long as the slowest running operator, so a slow backend call delays the stop. On the default pool of one worker, a canceled call can also wait for tasks that other callers queued ahead of it, and a full queue can't be woken by the cancellation.
+
+**Expected behavior.** A canceled call returns at once.
+
+**Impact.** The call returns the cancellation error, and it returns it late by at most the time of the slowest operator. A deadline shorter than a backend call's own timeout can't be met.
+
+### diffcontext-reports-errors-that-diffwithoptions-hides
+
+**Current behavior.** `Engine.DiffContext` returns the error for a nil document, or the error `DiffDocuments` returns, along with a nil `DiffResult`. `Engine.DiffWithOptions` turns the same failures into an empty `DiffResult`, because its signature has no error return.
+
+**Expected behavior.** The two forms would agree.
+
+**Impact.** A caller that moves from `DiffWithOptions` to `DiffContext` starts to see errors it didn't see before. That is the point of the new form, and the old form keeps its old behavior.
+
+### cycle-checks-stay-exponential-on-self-holding-documents
+
+**Current behavior.** `literal.Contains` and `CheckForCycles` take time that grows exponentially with the depth of a document that holds itself through aliases. A grab of an ancestor was the only producer we found, and it is now a cycle error, but the cost stays for a document that reaches the check by another way.
+
+**Expected behavior.** The check would take time proportional to the size of the document.
+
+**Impact.** Another producer of a self-holding document could hang the check. We found none.
+
+### list-item-named-1-grabs-report-a-cycle
+
+**Current behavior.** A list item whose name is `1`, grabbing `jobs.1`, gets a cycle message, because graft spells list items by name, and the name `1` is read as the path to the item. The 1.47.0 release already misbehaved on this shape.
+
+**Expected behavior.** The grab would name the item.
+
+**Impact.** The grab fails loudly. A template can rename the item.
+
+### resolution-errors-quote-the-substituted-path
+
+**Current behavior.** A resolution error for a reference that holds a `$NAME` prints the path with the variable's value in it, as 1.47.0 and spruce do. The new text that 1.48.0 adds never quotes a value.
+
+**Expected behavior.** An error that never quotes a value.
+
+**Impact.** Genesis reads this wording, so we left it alone. A log that keeps these errors holds the variable's value.
+
+### decode-error-position-limits
+
+**Current behavior.** When a document has several bad values and one of them sits in an inline map, `pkg/yaml` reports the earliest one by position in the document, and the result is the same on every run. Four limits remain on that search. When two errors have no line and sit on different lines, which 1.47.0 shares, the pick can still vary. The search costs about ten times as much as before on the error path at nesting depth 1000, which is 2.1 seconds. A result that hit the round cap is the same on every run but may not be the earliest. And three fallback paths still return goccy's random pick when an inline map holds several bad values. Those are a caller method that panics partway through the search, a panic in the first round, and a first round that finds no error with a position, such as when a validating `UnmarshalYAML` refuses a mapping that was cut short. The search drops a shared node at every site where it appears, as 1.47.0 does.
+
+**Expected behavior.** The earliest error on every run, at the cost of one decode.
+
+**Impact.** The failure itself is the same in every case, and only which of several bad values the message names can differ. The cost applies on the error path only.
+
+### hooked-decode-refusals
+
+**Current behavior.** The second decode route that runs for a target with an `UnmarshalYAML` method refuses some inputs that the plain route accepts, and a few that goccy accepts. Each refusal is an error, and no value is lost.
+
+- A key that two struct fields read is refused when one of them has the hook, where 1.47.0 skipped the hook. A present key with a null value counts, and the refusal comes before an earlier goccy error.
+
+- A hooked map with pointer keys refuses two equal non-nil pointees, and under `OnDuplicateKey` it refuses a folded repeat of a non-nil pointer key. It treats `-0.0` and `0.0` as the same key.
+
+- The refusal can fire in a value that goccy discards, in a value that a later outer pair replaces, in a site that a cancellation already dropped, and in a repeat that arrives through a merge source.
+
+- A repeated alias key is refused, and so is a `~` key in a hooked `map[int]`, which fails with the old error.
+
+- An inline `map[string]H` errors on a non-null value. Seventeen inputs that lost an entry without a word in 1.47.0 now fail.
+
+- Pointer keys to `*bool` under YAML 1.1, and to `**int`, are refused before goccy's own error for them.
+
+- A key type that has its own `UnmarshalYAML(*yaml.Node)` method is refused as a map key, where goccy decodes it.
+
+- A key that cannot decode, such as `256` into a `uint8` key, a null into a `time.Time` key, or a block scalar key into an `int` key, fails the way goccy fails.
+
+- The `*Node` route with `OnDuplicateKey` takes two more allocations per decode.
+
+- The test that checks the cost of NaN keys catches only cubic growth, and a quadratic regression would pass it.
+
+**Expected behavior.** yaml.v3 refuses a struct that two fields read, and goccy accepts most of the rest.
+
+**Impact.** Every case is a loud error, or behavior that both routes share, and none loses data. The refusals are conservative, and a caller that hits one can drop the hook from the type or rename the field.
+
+### zeroed-hook-never-runs
+
+**Current behavior.** goccy zeroes some values before `pkg/yaml` sees them, and a hook under one of them never runs, so an error the hook would have raised is lost. That covers a field that an inline struct shadows, and a whole inlined sub-struct whose lowercased name matches an outer key. The filter that decides which sites goccy zeroes models the first and not the second. No hook runs under an inline struct that goccy zeroes, so the type error that 1.47.0 gave for a value that did not fit the shadowed field is gone, and the result is the one goccy keeps.
+
+**Expected behavior.** The hook would run, or the decode would refuse.
+
+**Impact.** The result is the value goccy would have kept. The cost is a hidden error in a shape that is rare.
 
 ### memory-use-on-very-large-single-line-inputs
 
@@ -378,6 +478,14 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 **Impact.** We keep this on purpose. The error names the variable that was missing, where spruce's error names an empty segment. A template that relies on spruce failing for an unset variable gets the same failure in graft, because the key `$UNSET` is not there unless the document spells it.
 
+### reference-path-variables-substituted-at-parse
+
+**Graft behavior.** A `$NAME` node in a reference path is replaced once, when graft parses the operator call, so the dependency order sees the real path. With `GRAFT_T_XX=ab`, the line `aa: (( concat "x-" mm.$GRAFT_T_XX.v ))` waits for `mm.ab.v` and gives `x-ab`. A variable whose value starts with `$` is not expanded again. The arguments of `(( defer ))` and the operators that write their call back for a later pass keep `$NAME` as written.
+
+**Spruce behavior.** spruce works out the order of operators from the path as written, and replaces `$NAME` only when the operator runs. So it doesn't know that `aa` reads `mm.ab.v`, it runs `aa` first because `aa` sorts before `mm`, and it writes `aa: x-(( concat "a" "b" ))` and exits with code 0.
+
+**Impact.** We keep this on purpose, because operator text in the output is never what a template means. A template whose reader sorts before the value it reads gets the value in graft. A variable whose value starts with `$` is a key and not a second variable. The new fixture `env-segment-order` records the difference.
+
 ### cherry-pick-merges-picks-inside-one-list-entry
 
 **Graft behavior.** Two `--cherry-pick` paths that go below the same list entry, such as `jobs.0.k` and `jobs.0.name`, give one entry that holds both keys. A pick of the whole entry together with a longer pick inside it, as in `jobs.0` and `jobs.0.k`, gives that entry once.
@@ -436,7 +544,7 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 ### prune-entries-in-an-added-list-all-go
 
-**Graft behavior.** When a list is added to another one by `(( prepend ))`, by `(( append ))`, or by `--fallback-append`, each `(( prune ))` entry in it is dropped and every other entry stays, however many prune entries the list holds. Merging `l: [(( prepend )), (( prune )), a, (( prune )), b]` onto `l: [z]` gives `[a, b, z]`, and the same entries appended give `[z, a, b]`. The entries go before any operator runs, so with `l: [(( prepend )), (( prune )), a]` onto `l: [z]`, a `(( grab l.0 ))` gets `a`. An inline merge already worked this way, and `Engine.Evaluate` gives the same result as a merge.
+**Graft behavior.** When a list is added to another one by `(( prepend ))`, `(( append ))`, `(( insert ))`, or `(( replace ))`, or by `--fallback-append`, each `(( prune ))` entry in it is dropped and every other entry stays, however many prune entries the list holds. Merging `l: [(( prepend )), (( prune )), a, (( prune )), b]` onto `l: [z]` gives `[a, b, z]`, and the same entries appended give `[z, a, b]`. An insert or a replace drops its prune entries in the same way. The entries go before any operator runs, so with `l: [(( prepend )), (( prune )), a]` onto `l: [z]`, a `(( grab l.0 ))` gets `a`. An inline merge already worked this way, and `Engine.Evaluate` gives the same result as a merge.
 
 **Spruce behavior.** spruce keeps the prune entries in the added list and removes them by index after evaluation, one at a time, from a list that gets shorter with each removal. With two prune entries, the second removal lands on the wrong entry, so the prepend above gives `[a, null, z]` and loses `b`, and the append gives `[z, a, null]`. A grab of a slot that holds a prune entry gets `null`.
 
@@ -455,6 +563,14 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 Items that were tracked as open gaps and have since been closed. Kept
 here, under their original heading, so links from other pages that
 point at a specific gap keep resolving to the right place.
+
+### tagged-merge-keys-fail-to-parse
+
+**Resolved in 1.48.0.** `graft merge` and `pkg/yaml` now read `? !!merge <<` with its value on the next line as a merge key, and they read `!!str <<:` as an ordinary key named `<<`, as spruce does. Three related shapes still fail, and the open gap [more-tagged-merge-key-shapes-fail-to-parse](#more-tagged-merge-key-shapes-fail-to-parse) records them.
+
+### pkg-yaml-tagged-mapping-into-struct-fails
+
+**Resolved in 1.48.0.** `yaml.Unmarshal` now reads a mapping that carries a tag into a struct or a map, so `!foo {a: 1}` gives `a` the value 1, as yaml.v3 does. That holds for a tagged mapping under a field of the struct too. Any tag on a mapping unwraps, so `!!set {a: null}` into a struct now succeeds where it used to fail.
 
 ### stringify-block-scalar-style
 
