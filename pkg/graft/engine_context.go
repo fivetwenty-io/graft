@@ -6,6 +6,15 @@ import (
 	"io"
 )
 
+// orBackground returns ctx, or context.Background when ctx is nil, so
+// every Context method treats a nil ctx as Evaluate does.
+func orBackground(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
 // parseCanceled is stopped for the parse methods.
 func parseCanceled(ctx context.Context, step string) error {
 	return stopped(ctx, "parse", step)
@@ -23,8 +32,10 @@ func (e *DefaultEngine) ParseJSON(data []byte) (Document, error) {
 
 // ParseYAMLContext is ParseYAML under ctx. It checks ctx on entry and
 // again after parsing, and a canceled ctx yields an error that wraps
-// ctx.Err().
+// ctx.Err(). Like every Context method, it treats a nil ctx as
+// context.Background.
 func (e *DefaultEngine) ParseYAMLContext(ctx context.Context, data []byte) (Document, error) {
+	ctx = orBackground(ctx)
 	if err := parseCanceled(ctx, "parsing YAML"); err != nil {
 		return nil, err
 	}
@@ -38,6 +49,7 @@ func (e *DefaultEngine) ParseYAMLContext(ctx context.Context, data []byte) (Docu
 // ParseJSONContext is ParseJSON under ctx, with the checks of
 // ParseYAMLContext.
 func (e *DefaultEngine) ParseJSONContext(ctx context.Context, data []byte) (Document, error) {
+	ctx = orBackground(ctx)
 	if err := parseCanceled(ctx, "parsing JSON"); err != nil {
 		return nil, err
 	}
@@ -51,6 +63,7 @@ func (e *DefaultEngine) ParseJSONContext(ctx context.Context, data []byte) (Docu
 // ParseFileContext is ParseFile under ctx, with the checks of
 // ParseYAMLContext.
 func (e *DefaultEngine) ParseFileContext(ctx context.Context, path string) (Document, error) {
+	ctx = orBackground(ctx)
 	doc, err := e.parseFile(ctx, path)
 	if cerr := parseCanceled(ctx, "returning the document"); cerr != nil {
 		return nil, cerr
@@ -61,6 +74,7 @@ func (e *DefaultEngine) ParseFileContext(ctx context.Context, path string) (Docu
 // ParseReaderContext is ParseReader under ctx. Each Read checks ctx
 // first, so a cancel that lands mid-read stops the read.
 func (e *DefaultEngine) ParseReaderContext(ctx context.Context, r io.Reader) (Document, error) {
+	ctx = orBackground(ctx)
 	if err := parseCanceled(ctx, "reading input"); err != nil {
 		return nil, err
 	}
@@ -91,6 +105,7 @@ func (c *contextReader) Read(p []byte) (int, error) {
 // after the comparison, and a canceled ctx yields a nil DiffResult and an
 // error that wraps ctx.Err().
 func (e *DefaultEngine) DiffContext(ctx context.Context, a, b Document, opts *DiffOptions) (DiffResult, error) {
+	ctx = orBackground(ctx)
 	if err := stopped(ctx, "diff", "comparing the documents"); err != nil {
 		return nil, err
 	}
@@ -108,6 +123,7 @@ func (e *DefaultEngine) DiffContext(ctx context.Context, a, b Document, opts *Di
 // between operators, and then serializes the result with encode. A nil
 // doc is a validation error, as in the plain methods.
 func (e *DefaultEngine) encodeContext(ctx context.Context, name string, doc Document, encode func(Document) ([]byte, error)) ([]byte, error) {
+	ctx = orBackground(ctx)
 	if doc == nil {
 		return nil, NewValidationError(name + ": document must be non-nil")
 	}

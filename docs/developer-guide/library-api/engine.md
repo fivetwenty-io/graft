@@ -108,7 +108,7 @@ type Engine interface {
 
 ## Context Methods
 
-Eight methods take a `context.Context` as their first argument. They are `ParseYAMLContext`, `ParseJSONContext`, `ParseFileContext`, `ParseReaderContext`, `DiffContext`, `ToYAMLContext`, `ToJSONContext`, and `ToJSONIndentContext`. Each one does what its plain form does while the context is live, and the plain forms now call them with `context.Background()`.
+Eight methods take a `context.Context` as their first argument. They are `ParseYAMLContext`, `ParseJSONContext`, `ParseFileContext`, `ParseReaderContext`, `DiffContext`, `ToYAMLContext`, `ToJSONContext`, and `ToJSONIndentContext`. Each one does what its plain form does while the context is live, and the plain forms now call them with `context.Background()`. A nil context counts as `context.Background()`, as it does in `Evaluate` and `Merge`.
 
 Once the context is done, a call stops and returns an error that wraps `ctx.Err()`, so `errors.Is(err, context.Canceled)` and `errors.Is(err, context.DeadlineExceeded)` both work. The methods check the context on entry and again after the work, so a call that finishes after the context is canceled returns the cancellation and discards its result. The error text names the step that stopped and never quotes a value.
 
