@@ -43,12 +43,16 @@ func TestLaterKeyCancelsEarlierHooks(t *testing.T) {
 		t.Errorf("the hook ran %d times, want 1", gapHookCalls)
 	}
 
+	gapHookCalls = 0
 	var nestedNull map[int]map[string]gapHook
 	if err := yaml.Unmarshal([]byte("1: {a: x}\n0x1: ~\n"), &nestedNull); err != nil {
 		t.Fatal(err)
 	}
 	if len(nestedNull[1]) != 0 {
 		t.Errorf("null over a nested map: %v", nestedNull)
+	}
+	if gapHookCalls != 0 {
+		t.Errorf("the hook ran %d times under a null, want 0", gapHookCalls)
 	}
 }
 
@@ -75,18 +79,19 @@ type cancelCase struct {
 func runCancelCases(t *testing.T, cases []cancelCase) {
 	t.Helper()
 	for _, tc := range cases {
-		gapHookCalls = 0
-		got := tc.target()
-		if err := yaml.Unmarshal([]byte(tc.in), got); err != nil {
-			t.Errorf("%s: %v", tc.name, err)
-			continue
-		}
-		if g := reflect.ValueOf(got).Elem().Interface(); !reflect.DeepEqual(g, tc.want) {
-			t.Errorf("%s: got %+v, want %+v", tc.name, g, tc.want)
-		}
-		if gapHookCalls != tc.calls {
-			t.Errorf("%s: the hook ran %d times, want %d", tc.name, gapHookCalls, tc.calls)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			gapHookCalls = 0
+			got := tc.target()
+			if err := yaml.Unmarshal([]byte(tc.in), got); err != nil {
+				t.Fatal(err)
+			}
+			if g := reflect.ValueOf(got).Elem().Interface(); !reflect.DeepEqual(g, tc.want) {
+				t.Errorf("got %+v, want %+v", g, tc.want)
+			}
+			if gapHookCalls != tc.calls {
+				t.Errorf("the hook ran %d times, want %d", gapHookCalls, tc.calls)
+			}
+		})
 	}
 }
 
