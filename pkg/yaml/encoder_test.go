@@ -136,27 +136,28 @@ func TestEncoderReportsWriterAndCloseErrors(t *testing.T) {
 }
 
 func TestEncoderStreamIsMarshalPlusSeparators(t *testing.T) {
-	values := []any{map[string]any{"a": 1}, "s", nil, []any{1, "x\ny"}, yaml.MapSlice{{Key: "b", Value: 1}, {Key: "a", Value: 2}}}
-	opts := yaml.EncodeOptions{Indent: 3}
-	var want bytes.Buffer
-	for i, v := range values {
-		doc, err := yaml.MarshalWith(v, opts)
-		if err != nil {
-			t.Fatal(err)
+	values := []any{map[string]any{"a": 1, "l": []any{"x"}}, "s", nil, []any{1, "x\ny"}, yaml.MapSlice{{Key: "b", Value: 1}, {Key: "a", Value: 2}}}
+	for _, opts := range []yaml.EncodeOptions{{}, {Indent: 3}, {Indent: 3, IndentSequence: true}} {
+		var want bytes.Buffer
+		for i, v := range values {
+			doc, err := yaml.MarshalWith(v, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if i > 0 {
+				want.WriteString("---\n")
+			}
+			want.Write(doc)
 		}
-		if i > 0 {
-			want.WriteString("---\n")
+		var got bytes.Buffer
+		enc := yaml.NewEncoderWith(&got, opts)
+		for _, v := range values {
+			if err := enc.Encode(v); err != nil {
+				t.Fatal(err)
+			}
 		}
-		want.Write(doc)
-	}
-	var got bytes.Buffer
-	enc := yaml.NewEncoderWith(&got, opts)
-	for _, v := range values {
-		if err := enc.Encode(v); err != nil {
-			t.Fatal(err)
+		if got.String() != want.String() {
+			t.Errorf("%+v stream:\n%q\nwant\n%q", opts, got.String(), want.String())
 		}
-	}
-	if got.String() != want.String() {
-		t.Errorf("stream:\n%q\nwant\n%q", got.String(), want.String())
 	}
 }
