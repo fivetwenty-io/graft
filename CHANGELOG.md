@@ -29,7 +29,7 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 - An inline-map decode error now names the first bad value by position in the document, where it used to name the first by struct field order, and so it is the same on every run.
 
-- `Engine.Evaluate` now removes the keys that operators prune from the caller's `Document` in place, and it first does to the document's lists what a merge of that document alone does. An array marker such as `(( append ))` now acts as it does in `Merge`, and a `(( prune ))` entry in a list is removed. It used to leave a `(( prune ))` list entry and an array marker in the output as text. A caller that needs the document as it was should pass `doc.Clone()`.
+- `Engine.Evaluate` now removes the keys that operators prune from the caller's `Document` in place, and it first does to the document's lists what a merge of that document alone does. An array marker such as `(( append ))` now acts as it does in `Merge`, and a `(( prune ))` entry in a list is removed. It used to leave a `(( prune ))` list entry and an array marker in the output as text. A document whose map or list holds itself now gets the cycle error that `Merge` gives. A caller that needs the document as it was should pass `doc.Clone()`.
 
 - `flatten`, `shuffle`, and `join` now wait for every operator under the path they read, so they see evaluated values and no operator text. A list that reads itself, as in `l: [1, (( shuffle l ))]`, is now a cycle error in both modes. spruce accepts it and leaves operator text in the result, so this is a deliberate difference.
 

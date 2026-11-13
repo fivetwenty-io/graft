@@ -176,7 +176,9 @@ type Engine interface {
 	// doc's lists what a merge of doc alone does, so it resolves each
 	// array marker, such as (( append )), and removes each (( prune ))
 	// entry, and an index into a list counts only the entries that
-	// stay. It returns the merger's error for a marker a merge refuses.
+	// stay. It returns the merger's error for a marker a merge refuses,
+	// and the cycle error a merge gives for a document that holds
+	// itself.
 	// It resolves the operators in doc itself, and removes the keys
 	// they prune from doc itself, so doc must not be used by another
 	// call while Evaluate runs, and holds the evaluated result once it

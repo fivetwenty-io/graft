@@ -547,7 +547,7 @@ fmt.Println("Database host:", host)
 
 **Edge Cases:**
 
-- `Evaluate` first does to the document's lists what a merge of that document alone does. It resolves each array marker, such as `(( append ))`, and removes each `(( prune ))` entry from a list, so an index into a list counts only the entries that stay.
+- `Evaluate` first does to the document's lists what a merge of that document alone does. It resolves each array marker, such as `(( append ))`, and removes each `(( prune ))` entry from a list, so an index into a list counts only the entries that stay. A document whose map or list holds itself, as a Go caller can build one, gets the same cycle error from `Evaluate` that `Merge` gives.
 
 - `Evaluate` resolves the operators in `doc` itself, and it removes the keys they prune from `doc` itself. The document must not be used by another call while `Evaluate` runs, and it holds the evaluated result once the call returns. A caller that needs the document as it was should pass `doc.Clone()`.
 
