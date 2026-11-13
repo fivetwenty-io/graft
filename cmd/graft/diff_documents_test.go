@@ -222,3 +222,14 @@ func TestDiffChangesLabelsWholeDocumentsOfSingleDocumentInputs(t *testing.T) {
 		}
 	}
 }
+
+// TestDiffPairsJSONStringKeyWithYAMLKey pins that a JSON file diffs
+// clean against the YAML it was rendered from.
+func TestDiffPairsJSONStringKeyWithYAMLKey(t *testing.T) {
+	from, to := writeDiffInputs(t, `{"1": "a"}`, "1: a\n")
+	stdout, stderr, rc := runMainCaptured(t, "diff", "--changes", from, to)
+	if rc != 0 || stderr != "" ||
+		stdout != "Changes (0 modified, 0 added, 0 removed):\n" {
+		t.Fatalf("rc=%d stderr=%q stdout=%q, want no change", rc, stderr, stdout)
+	}
+}

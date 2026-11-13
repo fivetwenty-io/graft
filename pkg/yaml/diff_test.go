@@ -231,3 +231,15 @@ func TestDiffKeepsTypedKeysApart(t *testing.T) {
 		}
 	}
 }
+
+// TestDiffPairsJSONStringKeyWithYAMLKey checks that a JSON document
+// diffs clean against the YAML it was rendered from.
+func TestDiffPairsJSONStringKeyWithYAMLKey(t *testing.T) {
+	r, err := yaml.Diff([]byte(`{"1":"a"}`), []byte("1: a\n"), nil)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if !r.Empty() {
+		t.Errorf("got %d changes, want none", len(r.Changes()))
+	}
+}

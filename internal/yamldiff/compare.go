@@ -424,9 +424,10 @@ func mappingNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
 	removals := []*yamlnode.Node{}
 	additions := []*yamlnode.Node{}
 
+	fromTo, toPaired := pairKeys(from, to)
 	for i := 0; i+1 < len(from.Content); i += 2 {
 		key, fromItem := from.Content[i], from.Content[i+1]
-		toItem, ok := findValueByKey(to, key)
+		toItem, ok := fromTo[i/2], fromTo[i/2] != nil
 		if !ok {
 			removals = append(removals, key, fromItem)
 			continue
@@ -445,7 +446,7 @@ func mappingNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
 
 	for i := 0; i+1 < len(to.Content); i += 2 {
 		key, toItem := to.Content[i], to.Content[i+1]
-		if _, ok := findValueByKey(from, key); !ok {
+		if !toPaired[i/2] {
 			additions = append(additions, key, toItem)
 		}
 	}
@@ -822,21 +823,75 @@ func packChangesAndAddToResult(list []Diff, path Path, orderchanges []Detail, ad
 	return list
 }
 
-// findValueByKey returns the value of the first entry of a mapping whose
-// key, with aliases followed on both key and value, is the same key as
-// key. Two keys are the same when they have the same text and the same
-// YAML type, so the bool key true and the string key "true" differ.
-func findValueByKey(mapping, key *yamlnode.Node) (*yamlnode.Node, bool) {
-	want := keyTag(yamlnode.FollowAlias(key))
-	text := yamlnode.FollowAlias(key).Value
-	for i := 0; i+1 < len(mapping.Content); i += 2 {
-		k, v := yamlnode.FollowAlias(mapping.Content[i]), yamlnode.FollowAlias(mapping.Content[i+1])
-		if k.Value == text && keyTag(k) == want {
-			return v, true
+// keyID is a mapping key's text and YAML type.
+type keyID struct{ tag, text string }
+
+// pairKeys pairs the keys of the mappings from and to. It returns, for
+// each key of from, the value of the key it pairs with in to (nil for
+// none), and for each key of to, whether a key of from pairs with it.
+// Aliases are followed on keys and values.
+//
+// A first pass pairs keys that have the same text and the same YAML
+// type, taking the first such key of to. A second pass looks at the keys
+// left over on each side and pairs a key by text alone when exactly one
+// leftover key on each side has that text, so the string "1" of a JSON
+// file pairs with the int 1 of a YAML file. Any other key is unpaired.
+func pairKeys(from, to *yamlnode.Node) ([]*yamlnode.Node, []bool) {
+	first := make(map[keyID]int)
+	for j := 0; j+1 < len(to.Content); j += 2 {
+		id := idOfKey(to.Content[j])
+		if _, seen := first[id]; !seen {
+			first[id] = j
 		}
 	}
+	paired := make([]bool, len(to.Content)/2)
+	values := make([]*yamlnode.Node, len(from.Content)/2)
+	fromIDs := make(map[keyID]bool)
+	var leftFrom []int
+	for i := 0; i+1 < len(from.Content); i += 2 {
+		id := idOfKey(from.Content[i])
+		if j, ok := first[id]; ok {
+			values[i/2] = yamlnode.FollowAlias(to.Content[j+1])
+			paired[j/2] = true
+			fromIDs[id] = true
+			continue
+		}
+		leftFrom = append(leftFrom, i)
+	}
+	// A repeat of a paired key in to is paired too, and is not an addition.
+	for j := 0; j+1 < len(to.Content); j += 2 {
+		if fromIDs[idOfKey(to.Content[j])] {
+			paired[j/2] = true
+		}
+	}
+	if len(leftFrom) == 0 {
+		return values, paired
+	}
+	fromText := make(map[string][]int)
+	for _, i := range leftFrom {
+		text := yamlnode.FollowAlias(from.Content[i]).Value
+		fromText[text] = append(fromText[text], i)
+	}
+	toText := make(map[string][]int)
+	for j := 0; j+1 < len(to.Content); j += 2 {
+		if !paired[j/2] {
+			text := yamlnode.FollowAlias(to.Content[j]).Value
+			toText[text] = append(toText[text], j)
+		}
+	}
+	for text, is := range fromText {
+		js := toText[text]
+		if len(is) == 1 && len(js) == 1 {
+			values[is[0]/2] = yamlnode.FollowAlias(to.Content[js[0]+1])
+			paired[js[0]/2] = true
+		}
+	}
+	return values, paired
+}
 
-	return nil, false
+func idOfKey(k *yamlnode.Node) keyID {
+	k = yamlnode.FollowAlias(k)
+	return keyID{tag: keyTag(k), text: k.Value}
 }
 
 // keyTag returns the YAML type of a mapping key, so that matching can

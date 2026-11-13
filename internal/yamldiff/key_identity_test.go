@@ -43,3 +43,59 @@ func TestCompareKeyIdentityIncludesType(t *testing.T) {
 		})
 	}
 }
+
+func diffDetails(t *testing.T, from, to string) []Detail {
+	t.Helper()
+	a, err := ParseDocuments([]byte(from))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := ParseDocuments([]byte(to))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := CompareInputFiles(InputFile{Documents: a},
+		InputFile{Documents: b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var details []Detail
+	for _, d := range report.Diffs {
+		details = append(details, d.Details...)
+	}
+	return details
+}
+
+// TestCompareKeysPairByTextWhenTypesDiffer checks that a JSON string key
+// and a YAML int key with the same text are one key, so a rendered JSON
+// document diffs clean against its YAML source.
+func TestCompareKeysPairByTextWhenTypesDiffer(t *testing.T) {
+	for _, key := range []string{"1", "true", "null"} {
+		got := diffDetails(t, `{"`+key+`":"a"}`, key+": a\n")
+		if len(got) != 0 {
+			t.Errorf("%s: got %d changes, want none", key, len(got))
+		}
+	}
+	// The string key pairs with the string key, and the int key has no
+	// partner by text, so it is an addition.
+	got := diffDetails(t, `{"1":"a"}`, "1: a\n\"1\": b\n")
+	if len(got) != 2 || got[0].Kind != ADDITION ||
+		got[1].Kind != MODIFICATION {
+		t.Errorf("got %+v, want an addition and a modification", got)
+	}
+}
+
+// TestCompareStringKeysUnchanged checks a map of string keys, where the
+// pairing is by text as it always was.
+func TestCompareStringKeysUnchanged(t *testing.T) {
+	got := diffDetails(t, "a: 1\nb: 2\nc: 3\n", "a: 1\nb: 5\nd: 3\n")
+	if len(got) != 3 {
+		t.Fatalf("got %d changes, want 3: %+v", len(got), got)
+	}
+	kinds := []DetailKind{REMOVAL, ADDITION, MODIFICATION}
+	for i, d := range got {
+		if d.Kind != kinds[i] {
+			t.Errorf("change %d is %v, want %v", i, d.Kind, kinds[i])
+		}
+	}
+}
