@@ -28,7 +28,7 @@ r.Write(os.Stdout, yaml.ReportStyle{})
 func Diff(a, b []byte, opts *DiffOptions) (*DiffReport, error)
 ```
 
-`Diff` reads each input as a stream that may hold several documents, and it compares the documents in order. It reads YAML and JSON. It doesn't read TOML, which `graft diff` reads only when it opens a file. TOML that starts with a table header fails to parse, and TOML made of `key = value` lines reads as one YAML string.
+`Diff` reads each input as a stream that may hold several documents, and it pairs the documents by position, except that a stream made only of named Kubernetes resources, each with `apiVersion`, `kind`, and `metadata.name`, is paired by name. It reads YAML and JSON. It doesn't read TOML, which `graft diff` reads only when it opens a file. TOML that starts with a table header fails to parse, and TOML made of `key = value` lines reads as one YAML string.
 
 A nil `opts` selects the defaults, which compare the way `graft diff` does.
 
@@ -46,7 +46,7 @@ type DiffOptions struct {
 }
 ```
 
-`IgnoreOrderChanges` leaves out the changes that only reorder a list or the documents of a stream. Every other change is still reported.
+`IgnoreOrderChanges` leaves out the changes that only reorder a list or the named Kubernetes resources of a stream. Every other change is still reported. Swapping two ordinary documents is not an order change, because they are paired by position. It gives a removed and an added change at each of the two positions, and `IgnoreOrderChanges` leaves all four in place.
 
 ## Change and ChangeKind
 
@@ -60,7 +60,7 @@ type Change struct {
 }
 ```
 
-`Document` is the index of the document in the stream, counting from 0, or -1 for a change in the order of the documents.
+`Document` is the index of the document in the stream, counting from 0, or -1 for a change in the order of named Kubernetes resources. No other change has a document index of -1.
 
 `Path` locates the change in the cursor syntax that [Editing a File](yaml-document.md#paths) describes. It reads `j.name=web.p` for a field of the list entry named `web`, and `m.[a.b]` for a key that holds a dot. A change at the top of a document has an empty path.
 
@@ -73,7 +73,7 @@ type Change struct {
 | `ChangeAdded` | Entries were added to the collection at `Path` | `added` |
 | `ChangeRemoved` | Entries were removed from the collection at `Path` | `removed` |
 | `ChangeModified` | The value at `Path` changed | `modified` |
-| `ChangeOrder` | The entries at `Path`, or the documents of the stream, were reordered | `order` |
+| `ChangeOrder` | The entries at `Path`, or the named Kubernetes resources of the stream, were reordered | `order` |
 
 For an addition or a removal, `Path` points at the collection that gained or lost entries, and not at the entries themselves. Adding `n: 3` at the top of a document gives an added change with an empty path, and adding `y` to the list at `l` gives an added change at `l`. The entries that arrived are in `To`, and the entries that left are in `From`. For a modification, `Path` points at the value that changed.
 

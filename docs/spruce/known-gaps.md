@@ -189,9 +189,9 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 ### more-tagged-merge-key-shapes-fail-to-parse
 
-**Current behavior.** Three shapes of a tagged `<<` still fail to parse in `graft merge` and `pkg/yaml`, with "could not find merge key". They are `[!!merge <<]` as a value in a flow sequence, as in `x: [!!merge <<]`, an explicit key that carries an anchor before the tag, as in `? &k !!merge <<`, and a `!!str <<` whose colon sits on the next line. The forms `? !!merge <<` on one line with its value on the next, `!!merge <<:`, and `!!str <<:` all work in 1.48.0.
+**Current behavior.** Three shapes of a tagged `<<` still fail to parse in `graft merge` and `pkg/yaml`, with "could not find merge key". They are `[!!merge <<]` as a value in a flow sequence, as in `x: [!!merge <<]`, an explicit key that carries an anchor before the tag, as in `? &k !!merge <<`, and a `!!merge <<` whose colon sits on the next line. The forms `? !!merge <<` on one line with its value on the next, `!!merge <<:`, and `!!str <<:` all work in 1.48.0. So does a `!!str <<` whose colon sits on the next line, which reads as an ordinary key named `<<`, and spruce rejects that shape.
 
-**Expected behavior.** spruce reads `[!!merge <<]` as a list that holds the string `<<`. For the other shapes it merges the map for a `!!merge` key and reads a `!!str <<` key as an ordinary key.
+**Expected behavior.** spruce reads `[!!merge <<]` as a list that holds the string `<<`. For an explicit key that carries an anchor before the tag, it merges the map for a `!!merge` key. It rejects a `!!merge <<` whose colon sits on the next line, as graft does.
 
 **Impact.** All three shapes fail loudly, so graft never gives different output for them, and all three behave as they did in 1.47.0. A template has to drop the tag, or write the plain `<<:` form.
 
@@ -201,7 +201,7 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Expected behavior.** A complete editor would handle each shape, and the `|+` leftovers would go with the entry.
 
-**Impact.** Every shape but the last either changes nothing or fails with an error, and the error leaves the bytes as they were. The last one does what the call asked for, since removing the override is the point of the delete. The page [Editing a File with yaml.Document](../developer-guide/library-api/yaml-document.md) lists every refusal.
+**Impact.** Most of these shapes either change nothing or fail with an error, and the error leaves the bytes as they were. Two succeed. The `Delete` of a `|+` entry removes the entry and leaves its trailing blank lines in the file, and the `Delete` of an overriding key does what the call asked for, since removing the override is the point of the delete. The page [Editing a File with yaml.Document](../developer-guide/library-api/yaml-document.md) lists every refusal.
 
 ### pkg-yaml-diff-write-returns-binary-error-after-output
 

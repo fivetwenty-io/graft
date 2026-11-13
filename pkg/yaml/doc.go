@@ -252,8 +252,8 @@ parse the edited text again and refuse unless nothing else in the document
 changed. A refusal wraps ErrUnsupportedEdit, ErrPathNotFound,
 ErrInvalidPath, or ErrAmbiguousPath, and it leaves the bytes as they were.
 A Document never adds a key. Set refuses a tagged or anchored value, and
-both methods refuse an input that holds a carriage return or a tab on a
-line the edit touches.
+Delete refuses an anchor that an alias still needs. Both methods refuse an
+input that holds a carriage return or a tab on a line the edit touches.
 This Document is not pkg/graft's Document, which holds decoded values.
 
 # Comparing two inputs

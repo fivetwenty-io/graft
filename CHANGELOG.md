@@ -11,9 +11,9 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 ### Added
 
-- `yaml.Document`, with `ParseDocument`, `Bytes`, `Get`, `Editable`, `Set`, and `Delete`, holds a YAML file as the bytes it was read from. An edit changes only the bytes it names, so comments, blank lines, quoting, indentation, and line breaks everywhere else stay as written. A path uses graft's cursor syntax, such as `jobs.name=web.port`. `Set` replaces one scalar, keeps the quoting of its slot, and takes a string, a bool, any Go integer or float, or nil. It also replaces the body of a literal or folded block scalar, within the rules of the scalar's chomping indicator. `Delete` removes one mapping entry or sequence item along with its own comment lines. Both parse the edited text again and refuse unless nothing else in the document changed, and a refusal leaves the bytes as they were. A refusal is a `*yaml.DocumentError` whose `Unwrap` returns `ErrPathNotFound`, `ErrInvalidPath`, `ErrAmbiguousPath`, or `ErrUnsupportedEdit`, and its text never quotes the input. Version 1 never adds a key or reformats a file, and it refuses carriage returns, tabs on a line an edit touches, and tagged or anchored values.
+- `yaml.Document`, with `ParseDocument`, `Bytes`, `Get`, `Editable`, `Set`, and `Delete`, holds a YAML file as the bytes it was read from. An edit changes only the bytes it names, so comments, blank lines, quoting, indentation, and line breaks everywhere else stay as written. A path uses graft's cursor syntax, such as `jobs.name=web.port`. `Set` replaces one scalar, keeps the quoting of its slot, and takes a string, a bool, any Go integer or float, or nil. It also replaces the body of a literal or folded block scalar, within the rules of the scalar's chomping indicator. `Delete` removes one mapping entry or sequence item along with its own comment lines. Both parse the edited text again and refuse unless nothing else in the document changed, and a refusal leaves the bytes as they were. A refusal is a `*yaml.DocumentError` whose `Unwrap` returns `ErrPathNotFound`, `ErrInvalidPath`, `ErrAmbiguousPath`, or `ErrUnsupportedEdit`, and its text never quotes the input. Version 1 never adds a key or reformats a file, and it refuses carriage returns and tabs on a line an edit touches. `Set` also refuses tagged and anchored values, and `Delete` refuses an anchor that an alias still needs.
 
-- `yaml.Diff` compares two YAML or JSON inputs, each of which may hold several documents, with the engine that `graft diff` uses. It takes a `DiffOptions`, whose `IgnoreOrderChanges` leaves out changes that only reorder a list or the documents of a stream. It returns a `DiffReport` whose `Changes` method lists each `Change` with its document index, a path in the cursor syntax, a `ChangeKind`, and the nodes on either side. `Empty` says whether the inputs differ, and `Write` prints the report as `graft diff` prints it, in the style a `ReportStyle` gives. Comments and scalar styles don't count as changes. `Diff` reads YAML and JSON and never TOML. A parse failure comes back as a `*yaml.DecodeError`, and inputs that can't be compared come back as a `*yaml.DiffError`.
+- `yaml.Diff` compares two YAML or JSON inputs, each of which may hold several documents, with the engine that `graft diff` uses. It takes a `DiffOptions`, whose `IgnoreOrderChanges` leaves out changes that only reorder a list or the named Kubernetes resources of a stream. It returns a `DiffReport` whose `Changes` method lists each `Change` with its document index, a path in the cursor syntax, a `ChangeKind`, and the nodes on either side. `Empty` says whether the inputs differ, and `Write` prints the report as `graft diff` prints it, in the style a `ReportStyle` gives. Comments and scalar styles don't count as changes. `Diff` reads YAML and JSON and never TOML. A parse failure comes back as a `*yaml.DecodeError`, and inputs that can't be compared come back as a `*yaml.DiffError`.
 
 - `Engine` has eight new methods that take a context, which are `ParseYAMLContext`, `ParseJSONContext`, `ParseFileContext`, `ParseReaderContext`, `DiffContext`, `ToYAMLContext`, `ToJSONContext`, and `ToJSONIndentContext`. A canceled context stops the call with an error that wraps `ctx.Err()`. The plain methods now call these with `context.Background()`. Evaluation stops between operators in both the sequential and the parallel mode, and an operator that is already running finishes first.
 
@@ -29,7 +29,7 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 - An inline-map decode error now names the first bad value by position in the document, where it used to name the first by struct field order, and so it is the same on every run.
 
-- `Engine.Evaluate` now removes the keys that operators prune from the caller's `Document` in place, and it first does to the document's lists what a merge of that document alone does. An array marker such as `(( append ))` now acts as it does in `Merge`, and a `(( prune ))` entry in a list is removed. A caller that needs the document as it was should pass `doc.Clone()`.
+- `Engine.Evaluate` now removes the keys that operators prune from the caller's `Document` in place, and it first does to the document's lists what a merge of that document alone does. An array marker such as `(( append ))` now acts as it does in `Merge`, and a `(( prune ))` entry in a list is removed. It used to leave a `(( prune ))` list entry and an array marker in the output as text. A caller that needs the document as it was should pass `doc.Clone()`.
 
 - `flatten`, `shuffle`, and `join` now wait for every operator under the path they read, so they see evaluated values and no operator text. A list that reads itself, as in `l: [1, (( shuffle l ))]`, is now a cycle error in both modes. spruce accepts it and leaves operator text in the result, so this is a deliberate difference.
 
@@ -49,7 +49,7 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 - Every `(( prune ))` entry in a list that `prepend`, `append`, `insert`, or `replace` adds is now dropped, and every other entry stays. So `[(( prepend )), (( prune )), a, (( prune )), b]` onto `[z]` gives `[a, b, z]`. spruce loses an entry here and puts a `null` in its place, so this is a deliberate difference.
 
-- Any tag on a mapping now unwraps when the mapping is decoded into a struct or a map. So `!!set {a: null}` into a struct succeeds where it used to fail.
+- Any tag on a mapping now unwraps when the mapping is decoded into a struct or a map. So `!!set {a: null}` into a struct succeeds where it used to fail with "tag was used where mapping is expected".
 
 ### Fixed
 
@@ -61,8 +61,6 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 - A hook under a key that a later key replaces no longer runs, so a hook fills only an entry that survives in the result.
 
-- A tagged mapping now decodes into a struct or a map, where it failed with "tag was used where mapping is expected".
-
 - A pointer map key under a hook used to land on a nil key, and it now lands on its real key. A folded repeat is now last-wins. Keys that read alike but differ, such as `null` and `"null"`, or `1` and `"1"`, keep separate entries. NaN keys get one entry each, on the plain route too. In a pointer map, `"null": a` beside `null: b` keeps both entries.
 
 - `-1` on a line of its own now merges as the number -1. 1.47.0 gave the string `"-1"`, and spruce agrees with the new value.
@@ -72,8 +70,6 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 - `(( $UNSET || (( prune )) ))` and `(( nope || (( prune )) ))` used to panic. They now prune the key.
 
 - `calc` looked up a sibling wrongly under a bare `||` and gave a wrong value. It now gives the right one.
-
-- `Engine.Evaluate` used to leave a `(( prune ))` list entry and an array marker in the output as text. It now removes them.
 
 ## [1.47.0] - 2026-11-10
 

@@ -32,7 +32,7 @@ With the input `# service`, `name: web   # shown in the UI`, and `port: 8080` on
 
 `Get(path)` returns the `*yaml.Node` that the path names. Its `Line` and `Column` come from the input, and the tree under it is the one that `Unmarshal` into a `Node` gives for the same text. A path that reaches an alias returns the node the alias refers to. `Get` never expands a `<<` merge, so a key that only a merge brings in isn't found. The node is a copy, so changing it doesn't change the `Document`.
 
-`Editable(path)` reports whether `Set` could replace the value at the path. It returns nil when it could, and otherwise returns the error `Set` would return. It lets a caller check a whole list of edits before it makes the first one.
+`Editable(path)` reports whether `Set` could replace the value at the path. It returns nil when it could, and otherwise returns the error `Set` would return. It checks the path and the slot but not the value, so `Set` can still refuse a value that `Editable` passed. A caller can use it to check a whole list of paths before it makes the first edit.
 
 `Set(path, value)` replaces one scalar and changes no other byte.
 
@@ -133,7 +133,7 @@ Every error from `Get`, `Editable`, `Set`, and `Delete` is a `*yaml.DocumentErro
 | `ErrAmbiguousPath` | The path could name more than one node |
 | `ErrUnsupportedEdit` | The edit can't be made by changing only the text it names |
 
-These are the reasons, grouped by the sentinel they wrap.
+These are the reasons, grouped by the sentinel they wrap. The table paraphrases the reason text and leaves out the fill-ins, such as a position or a Go type. A caller should branch on the sentinel with `errors.Is` and should not match on the text of a `Reason`.
 
 | Reason | Sentinel |
 |--------|----------|
@@ -180,7 +180,7 @@ The first version is deliberately narrow, and it stays on the safe side whenever
 
 - It never changes a collection. `Set` takes a scalar, and `Delete` removes a whole entry.
 
-- It refuses carriage returns, tabs on a line an edit touches, and tagged or anchored values.
+- It refuses carriage returns and tabs on a line an edit touches. `Set` also refuses tagged and anchored values, and `Delete` refuses an anchor that an alias still needs.
 
 - It doesn't expand a `<<` merge, so it edits the document as written.
 
