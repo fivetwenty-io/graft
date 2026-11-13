@@ -281,8 +281,6 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 - The `*Node` route with `OnDuplicateKey` takes two more allocations per decode.
 
-- The test that checks the cost of NaN keys catches only cubic growth, and a quadratic regression would pass it.
-
 **Expected behavior.** yaml.v3 refuses a struct that two fields read, and goccy accepts most of the rest.
 
 **Impact.** Every case is a loud error, or behavior that both routes share, and none loses data. The refusals are conservative, and a caller that hits one can drop the hook from the type or rename the field.

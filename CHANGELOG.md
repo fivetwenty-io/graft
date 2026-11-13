@@ -47,7 +47,9 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 - `stringify`, `grab`, and `join` of a map now leave out the keys queued for pruning. That covers a `prune` with no earlier value, a `prune` over an earlier value, a `||` that falls back to `prune`, and a key given to `--prune`. spruce prints `null` or the earlier value for these keys in `stringify`, so this is a deliberate difference.
 
-- Every `(( prune ))` entry in a list that `prepend`, `append`, `insert`, or `replace` adds is now dropped, and every other entry stays. So `[(( prepend )), (( prune )), a, (( prune )), b]` onto `[z]` gives `[a, b, z]`. spruce loses an entry here and puts a `null` in its place, so this is a deliberate difference.
+- Every `(( prune ))` entry in a list that `prepend`, `append`, `insert`, or `replace` adds is now dropped, and every other entry stays. So `[(( prepend )), (( prune )), a, (( prune )), b]` onto `[z]` gives `[a, b, z]`. spruce loses an entry here and puts a `null` in its place, so this is a deliberate difference. A keyed insert such as `(( insert after name z ))` that holds prune entries now works too, where spruce and 1.47.0 fail with an error.
+
+- An inline merge now keeps a list entry such as `"(( prune )) x"` as a string, both inside and past the end of the original list, where 1.47.0 dropped it or replaced it. This matches spruce.
 
 - Any tag on a mapping now unwraps when the mapping is decoded into a struct or a map. So `!!set {a: null}` into a struct succeeds where it used to fail with "tag was used where mapping is expected".
 
@@ -70,6 +72,8 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 - `(( $UNSET || (( prune )) ))` and `(( nope || (( prune )) ))` used to panic. They now prune the key.
 
 - `calc` looked up a sibling wrongly under a bare `||` and gave a wrong value. It now gives the right one.
+
+- `graft diff` and `yaml.Diff` used to treat a bool, null, or int key and the string spelled the same way as one key, such as `true` and `"true"`. A change to one of them could be reported against the other, and it now is reported against the right one.
 
 ## [1.47.0] - 2026-11-10
 
