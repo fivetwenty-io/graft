@@ -1115,7 +1115,7 @@ func (m *mergeBuilderImpl) hasPruneOperators(data map[string]interface{}) bool {
 func hasPruneValue(v interface{}) bool {
 	switch t := v.(type) {
 	case string:
-		return isPruneEntry(t)
+		return isPruneCall(t)
 	case map[string]interface{}:
 		for _, e := range t {
 			if hasPruneValue(e) {

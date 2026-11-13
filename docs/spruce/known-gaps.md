@@ -536,7 +536,7 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 ### prune-entry-in-a-list-inside-a-list-is-dropped
 
-**Graft behavior.** A `(( prune ))` entry goes from a list wherever the list sits, including a list inside another list. With `k: [[a, (( prune )), b], [c]]`, `k` comes out as `[[a, b], [c]]`, and a `(( grab k ))` gets the same value. The spelling doesn't matter, so `((  prune  ))` goes too, and `Engine.Evaluate` on a parsed document removes these entries the same way a merge does.
+**Graft behavior.** A `(( prune ))` entry goes from a list wherever the list sits, including a list inside another list. With `k: [[a, (( prune )), b], [c]]`, `k` comes out as `[[a, b], [c]]`, and a `(( grab k ))` gets the same value. The spelling doesn't matter, so `((  prune  ))` goes too. An entry counts only when the whole string is the call. An entry such as `(( prune )) x` that adds to a list is a plain string and stays, as it does in spruce. `Engine.Evaluate` on a parsed document removes these entries the same way a merge does.
 
 **Spruce behavior.** spruce removes a prune entry only from a list that sits directly under a map key. In a list inside a list, the entry stays and comes out as `null`, so `k` comes out as `[[a, null, b], [c]]`. A grab of a list that loses an entry can also see the list before the entry goes, so with `l: [a, ((  prune  )), b]`, `(( grab l ))` gives `[a, b, b]`.
 

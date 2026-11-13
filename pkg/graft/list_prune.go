@@ -6,14 +6,26 @@ import (
 	"regexp"
 )
 
-// pruneEntryRx matches a list entry that is a (( prune )) call, the
-// way the merger matches one, so a spaced spelling counts too.
-var pruneEntryRx = regexp.MustCompile(`^\s*\Q((\E\s*prune\s*\Q))\E`)
+// pruneEntryRx matches a list entry that is a (( prune )) call and
+// nothing more, the way the merger matches one, so a spaced spelling
+// counts too. An entry with more text after the call is a plain string.
+var pruneEntryRx = regexp.MustCompile(`^\s*\Q((\E\s*prune\s*\Q))\E\s*$`)
 
-// isPruneEntry reports whether v is a (( prune )) call.
+// pruneCallRx matches any string that starts with a (( prune )) call,
+// the way the merger matches a map value.
+var pruneCallRx = regexp.MustCompile(`^\s*\Q((\E\s*prune\s*\Q))\E`)
+
+// isPruneEntry reports whether the list entry v is a (( prune )) call.
 func isPruneEntry(v interface{}) bool {
 	s, ok := v.(string)
 	return ok && pruneEntryRx.MatchString(s)
+}
+
+// isPruneCall reports whether v starts with a (( prune )) call, which
+// is enough for the merger to act on it as a map value.
+func isPruneCall(v interface{}) bool {
+	s, ok := v.(string)
+	return ok && pruneCallRx.MatchString(s)
 }
 
 // mergedKey is the context key a merge sets when it hands its result to

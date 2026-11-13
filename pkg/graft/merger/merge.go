@@ -27,6 +27,12 @@ var (
 	sortRx     = regexp.MustCompile(`^\s*\Q((\E\s*sort(?:\s+by\s+(.*?))?\s*\Q))\E$`)
 	keyMergeRx = regexp.MustCompile(`^\Q((\E\s*merge(?:\s+on\s+(.*?))?\s*\Q))\E$`)
 
+	// pruneEntryRx matches a list entry that is a (( prune )) call and
+	// nothing more. pruneRx, which matches any string that starts with
+	// the call, is for map values and for an inline merge's entries that
+	// line up with an original entry, where spruce matches the same way.
+	pruneEntryRx = regexp.MustCompile(`^\s*\Q((\E\s*prune\s*\Q))\E\s*$`)
+
 	mergeRegEx                = regexp.MustCompile(`^\Q((\E\s*merge\s*\Q))\E$`)
 	mergeOnKeyRegEx           = regexp.MustCompile(`^\Q((\E\s*merge\s+(on)\s+(.+)\s*\Q))\E$`)
 	replaceRegEx              = regexp.MustCompile(`^\Q((\E\s*replace\s*\Q))\E$`)
@@ -907,9 +913,18 @@ func (m *Merger) mergeArrayInline(orig, n []interface{}, at mergePath) []interfa
 			}
 		}
 
-		// Add any additional elements from the new array that are beyond the original array's length
+		// Add any additional elements from the new array that are
+		// beyond the original array's length. Such an entry prunes
+		// nothing, so only a whole (( prune )) call is dropped.
 		for i := len(orig); i < len(n); i++ {
-			if !prunedIndices[i] {
+			switch {
+			case isPruneEntry(n[i]):
+			case prunedIndices[i]:
+				// More text follows the call, so the entry is a
+				// plain string, which mergeObj would take for a
+				// prune call.
+				merged = append(merged, n[i])
+			default:
 				mergedItem := m.mergeObj(nil, n[i], at.index(i))
 				merged = append(merged, mergedItem)
 			}
@@ -1164,6 +1179,13 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 	return result
 }
 
+// isPruneEntry reports whether the list entry e is a (( prune )) call.
+// An entry with more text after the call is a plain string.
+func isPruneEntry(e interface{}) bool {
+	s, ok := e.(string)
+	return ok && pruneEntryRx.MatchString(s)
+}
+
 // withoutPruneEntries returns list without its (( prune )) entries. A
 // list a merge adds to another, rather than merging entry by entry,
 // drops them this way, so each one goes and every other entry stays,
@@ -1172,7 +1194,7 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 func withoutPruneEntries(list []interface{}) []interface{} {
 	var out []interface{}
 	for i, e := range list {
-		if s, ok := e.(string); ok && pruneRx.MatchString(s) {
+		if isPruneEntry(e) {
 			if out == nil {
 				out = append(make([]interface{}, 0, len(list)), list[:i]...)
 			}
