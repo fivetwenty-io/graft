@@ -197,11 +197,6 @@ type ModificationDefinition struct {
 	name     string
 	relative string
 
-	// adds is set for a prepend or an append, whose list drops its
-	// (( prune )) entries, since there is no entry of the original
-	// list at their place for them to prune.
-	adds bool
-
 	list []interface{}
 }
 
@@ -655,6 +650,12 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, at mergePath) [
 
 	// Process the modifications definitions that were found in the new list
 	for i, modificationDefinition := range modificationDefinitions {
+		// A list that a prepend, an append, an insert, or a replace
+		// adds drops its (( prune )) entries, since no entry of the
+		// original list sits at their place for them to prune.
+		if op := modificationDefinition.listOp; op == listOpInsert || op == listOpReplace {
+			modificationDefinition.list = withoutPruneEntries(modificationDefinition.list)
+		}
 		log.DEBUG("  #%d %#v", i, modificationDefinition)
 		log.DEBUG("  modification: op=%v, key=%v, name=%v, index=%v, list_len=%d",
 			modificationDefinition.listOp, modificationDefinition.key, modificationDefinition.name,
@@ -823,9 +824,6 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, at mergePath) [
 
 		if modificationDefinition.listOp != listOpDelete {
 			list := modificationDefinition.list
-			if modificationDefinition.adds {
-				list = withoutPruneEntries(list)
-			}
 			log.DEBUG("%s: inserting %d new elements to existing array at index %d", node, len(list), idx)
 			result = insertIntoList(result, idx, list)
 		} else {
@@ -1060,11 +1058,11 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 			continue
 
 		case appendRegEx.MatchString(e): // check for (( append ))
-			result = append(result, ModificationDefinition{listOp: listOpInsert, index: -1, adds: true})
+			result = append(result, ModificationDefinition{listOp: listOpInsert, index: -1})
 			continue
 
 		case prependRegEx.MatchString(e): // check for (( prepend ))
-			result = append(result, ModificationDefinition{listOp: listOpInsert, index: 0, adds: true})
+			result = append(result, ModificationDefinition{listOp: listOpInsert, index: 0})
 			continue
 
 		case insertByIdxRegEx.MatchString(e): // check for (( insert ... <idx> ))
