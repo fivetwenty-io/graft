@@ -56,15 +56,23 @@ func readDeps(ev *Evaluator, arg *Expr, locs []*tree.Cursor, fallbacks bool) []*
 // what such an operator hands back, as x.bb is with x: (( grab m )), and
 // until that operator runs the key is not found in the map that holds
 // it. A reader that runs after the operator finds the key, so it leaves
-// the key out in either mode and in any order, as the output does.
+// the key out in either mode and in any order, as the output does. The
+// answer is the same for every reader in a phase, so the index of the
+// phase's operators finds it once.
 func prunedKeyHolders(ev *Evaluator, locs []*tree.Cursor) []*tree.Cursor {
-	paths := prunekeys.For(ev)
-	if len(paths) == 0 || len(locs) == 0 {
+	if len(locs) == 0 {
 		return nil
 	}
 	idx := oploc.For(ev, locs, ev.Tree)
+	return idx.Holders(func() []*tree.Cursor {
+		return findPrunedKeyHolders(ev, idx)
+	})
+}
+
+// findPrunedKeyHolders does the work of prunedKeyHolders against idx.
+func findPrunedKeyHolders(ev *Evaluator, idx *oploc.Index) []*tree.Cursor {
 	var out []*tree.Cursor
-	for _, path := range paths {
+	for _, path := range prunekeys.For(ev) {
 		c, err := tree.ParseCursor(path)
 		if err != nil {
 			continue

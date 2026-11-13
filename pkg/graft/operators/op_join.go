@@ -207,14 +207,34 @@ func joinParts(i int, val interface{}, fromEnv bool) ([]string, error) {
 // back the map it reads, not a copy, so a key is matched by the map that
 // holds it in the tree, whether the operator reached that map through a
 // reference or a nested call. val is returned as it is when no key in
-// it will be pruned.
+// it will be pruned, and without a look at the paths to prune when it
+// holds no map, so a reader of a list pays nothing for them.
 func withoutPrunedKeys(ev *Evaluator, val interface{}) interface{} {
+	if !holdsMap(val) {
+		return val
+	}
 	pruned := prunedKeysByMap(ev)
 	if len(pruned) == 0 {
 		return val
 	}
 	out, _ := dropPrunedKeys(val, pruned, map[uintptr]bool{})
 	return out
+}
+
+// holdsMap reports whether val is a map or a list that holds one at
+// any depth.
+func holdsMap(val interface{}) bool {
+	switch v := val.(type) {
+	case map[string]interface{}:
+		return true
+	case []interface{}:
+		for _, e := range v {
+			if holdsMap(e) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // prunedKeysByMap returns, for each map in the tree that holds a key

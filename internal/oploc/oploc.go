@@ -10,6 +10,7 @@ package oploc
 import (
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -21,6 +22,9 @@ type Index struct {
 	canon []string
 	at    map[string]bool
 	under map[string][]int
+
+	holdersOnce sync.Once
+	holders     []*tree.Cursor
 }
 
 // New indexes locs, each canonicalized against root. A path that does
@@ -90,6 +94,18 @@ func (idx *Index) Under(nodes, self []string) []*tree.Cursor {
 		out = append(out, idx.locs[i])
 	}
 	return out
+}
+
+// Holders returns what find returns, calling find once for idx. Every
+// operator that leaves pruned keys out of what it reads asks for the
+// same operator paths above those keys, so the phase finds them once
+// rather than once per reader. A nil idx calls find each time.
+func (idx *Index) Holders(find func() []*tree.Cursor) []*tree.Cursor {
+	if idx == nil {
+		return find()
+	}
+	idx.holdersOnce.Do(func() { idx.holders = find() })
+	return idx.holders
 }
 
 // Canonical returns c with list entries named by index, the form the
