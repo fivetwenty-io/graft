@@ -49,7 +49,7 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 - Every `(( prune ))` entry in a list that `prepend`, `append`, `insert`, or `replace` adds is now dropped, and every other entry stays. So `[(( prepend )), (( prune )), a, (( prune )), b]` onto `[z]` gives `[a, b, z]`. spruce loses an entry here and puts a `null` in its place, so this is a deliberate difference. A keyed insert such as `(( insert after name z ))` that holds prune entries now works too, where spruce and 1.47.0 fail with an error.
 
-- An inline merge now keeps a list entry such as `"(( prune )) x"` as a string when it falls past the end of the original list, where 1.47.0 dropped it or replaced it. This matches spruce. An entry that lines up with an original entry still prunes that entry, as it did in 1.47.0.
+- A list entry that only starts with `(( prune ))`, such as `"(( prune )) x"`, now merges as spruce merges it. When it lines up with an original entry, it prunes that entry. 1.47.0 did that under an explicit `(( inline ))` marker but kept the string under the default list merge. When it falls past the end of the original list, it stays as a string, where 1.47.0 dropped it or replaced it.
 
 - Any tag on a mapping now unwraps when the mapping is decoded into a struct or a map. So `!!set {a: null}` into a struct succeeds where it used to fail with "tag was used where mapping is expected".
 
