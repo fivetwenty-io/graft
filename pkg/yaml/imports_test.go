@@ -21,6 +21,7 @@ var allowedImports = map[string]bool{
 	"github.com/fivetwenty-io/graft/internal/yamlcodec":   true,
 	"github.com/fivetwenty-io/graft/internal/yamlerr":     true, // gives pkg/graft the plain text of a decoding error
 	"github.com/fivetwenty-io/graft/internal/yamlnode":    true,
+	"github.com/fivetwenty-io/graft/internal/yamlprep":    true,
 	"github.com/fivetwenty-io/graft/internal/yamldiff":    true, // yaml.Diff runs graft diff's engine
 	"github.com/fivetwenty-io/graft/internal/humanreport": true, // DiffReport.Write renders as graft diff does
 	"github.com/fivetwenty-io/graft/internal/termstyle":   true, // humanreport styles its output with it
@@ -28,7 +29,6 @@ var allowedImports = map[string]bool{
 	"golang.org/x/sys/unix":                               true, // isatty and term call it
 	"golang.org/x/term":                                   true, // termstyle reads the terminal width
 	"github.com/sergi/go-diff/diffmatchpatch":             true, // humanreport marks the changed words of a string
-	"github.com/fivetwenty-io/graft/internal/yamlprep":    true,
 }
 
 // bannedImports are the packages pkg/yaml exists to replace, plus graft's

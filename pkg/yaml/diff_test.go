@@ -194,7 +194,7 @@ func TestDiffReportWrite(t *testing.T) {
 	if err := r.Write(&buf, yaml.ReportStyle{}); err != nil {
 		t.Fatal(err)
 	}
-	if out := buf.String(); !strings.Contains(out, "a\n") || strings.Contains(out, "\x1b") {
+	if out := buf.String(); out != "\na\n± value change\n- 1\n+ 2\n\n\n" {
 		t.Errorf("plain output = %q", out)
 	}
 

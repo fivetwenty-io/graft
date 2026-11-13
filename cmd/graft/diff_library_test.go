@@ -16,8 +16,8 @@ import (
 var renderFailures = map[string]bool{"binary-invalid": true}
 
 // TestLibraryDiffMatchesTheCommand holds yaml.Diff and DiffReport.Write
-// to the output of graft diff over every YAML and JSON parity case that graft diff can read and
-// every output mode.
+// to the output of graft diff over every YAML and JSON parity case that
+// graft diff can read and every output mode.
 func TestLibraryDiffMatchesTheCommand(t *testing.T) {
 	cases, err := filepath.Glob("../../tests/diff-parity/cases/*")
 	if err != nil {
@@ -57,9 +57,13 @@ func TestLibraryDiffMatchesTheCommand(t *testing.T) {
 			// error that isn't fatal, as with a binary value that isn't
 			// base64. Write returns that error after the same output.
 			var diffErr *yaml.DiffError
-			if err := r.Write(&buf, style); err != nil && (errors.As(err, &diffErr) || !renderFailures[filepath.Base(dir)]) {
-				t.Errorf("%s %s: Write: %v", filepath.Base(dir), m.name, err)
-				continue
+			if err := r.Write(&buf, style); err != nil {
+				fatal := errors.As(err, &diffErr)
+				expected := renderFailures[filepath.Base(dir)]
+				if fatal || !expected {
+					t.Errorf("%s %s: Write: %v", filepath.Base(dir), m.name, err)
+					continue
+				}
 			}
 			if buf.String()+"\n" != stdout {
 				t.Errorf("%s %s: Write differs from graft diff", filepath.Base(dir), m.name)
