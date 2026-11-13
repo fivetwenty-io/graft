@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This release adds two things to `pkg/yaml` that a program needs in order to edit and compare YAML files without importing goccy. It adds `yaml.Document`, which changes a value in a file and leaves every other byte alone, and `yaml.Diff`, which compares two inputs the way `graft diff` does. It also adds Context variants of eight `Engine` methods, so a caller can cancel a parse, a comparison, or an output step. The release closes several defects in the decoder and the evaluator as well, and some of those change output or turn a silent wrong result into an error, so please read the Changed and Fixed sections before you upgrade.
+
+### Added
+
+- `yaml.Document`, with `ParseDocument`, `Bytes`, `Get`, `Editable`, `Set`, and `Delete`, holds a YAML file as the bytes it was read from. An edit changes only the bytes it names, so comments, blank lines, quoting, indentation, and line breaks everywhere else stay as written. A path uses graft's cursor syntax, such as `jobs.name=web.port`. `Set` replaces one scalar, keeps the quoting of its slot, and takes a string, a bool, any Go integer or float, or nil. It also replaces the body of a literal or folded block scalar, within the rules of the scalar's chomping indicator. `Delete` removes one mapping entry or sequence item along with its own comment lines. Both parse the edited text again and refuse unless nothing else in the document changed, and a refusal leaves the bytes as they were. A refusal is a `*yaml.DocumentError` whose `Unwrap` returns `ErrPathNotFound`, `ErrInvalidPath`, `ErrAmbiguousPath`, or `ErrUnsupportedEdit`, and its text never quotes the input. Version 1 never adds a key or reformats a file, and it refuses carriage returns, tabs on a line an edit touches, and tagged or anchored values.
+
+- `yaml.Diff` compares two YAML or JSON inputs, each of which may hold several documents, with the engine that `graft diff` uses. It takes a `DiffOptions`, whose `IgnoreOrderChanges` leaves out changes that only reorder a list or the documents of a stream. It returns a `DiffReport` whose `Changes` method lists each `Change` with its document index, a path in the cursor syntax, a `ChangeKind`, and the nodes on either side. `Empty` says whether the inputs differ, and `Write` prints the report as `graft diff` prints it, in the style a `ReportStyle` gives. Comments and scalar styles don't count as changes. `Diff` reads YAML and JSON and never TOML. A parse failure comes back as a `*yaml.DecodeError`, and inputs that can't be compared come back as a `*yaml.DiffError`.
+
+- `Engine` has eight new methods that take a context, which are `ParseYAMLContext`, `ParseJSONContext`, `ParseFileContext`, `ParseReaderContext`, `DiffContext`, `ToYAMLContext`, `ToJSONContext`, and `ToJSONIndentContext`. A canceled context stops the call with an error that wraps `ctx.Err()`. The plain methods now call these with `context.Background()`. Evaluation stops between operators in both the sequential and the parallel mode, and an operator that is already running finishes first.
+
+- `Expr.WrittenPath()` returns a reference path as it was written, with each `$NAME` still in place of its value.
+
+### Changed
+
+- Decoding now refuses a key that two struct fields read when one of them has an `UnmarshalYAML` method, where it used to skip the hook without a word. A present key with a null value counts as read. A hooked map with pointer keys refuses two equal non-nil pointees, and under `OnDuplicateKey` it refuses a folded repeat of a non-nil pointer key. It treats `-0.0` and `0.0` as the same key. Every one of these is an error, and no value is lost.
+
+- `$NAME` in a reference path is now replaced with the variable's value when graft parses the operator, so the dependency order sees the real path. Before, the value went in when the operator ran. This is a deliberate difference from spruce, which orders operators from the path as written, and a template whose reader sorts before the value it reads now gets the value. A value that starts with `$` is not expanded a second time.
+
+- The `Engine` interface has eight new methods, so a type outside graft that implements it must add them. `NewEngine` only ever returns `*DefaultEngine`, which has them.
+
+- An inline-map decode error now names the first bad value by position in the document, where it used to name the first by struct field order, and so it is the same on every run.
+
+- `Engine.Evaluate` now removes the keys that operators prune from the caller's `Document` in place, and it first does to the document's lists what a merge of that document alone does. An array marker such as `(( append ))` now acts as it does in `Merge`, and a `(( prune ))` entry in a list is removed. A caller that needs the document as it was should pass `doc.Clone()`.
+
+- `flatten`, `shuffle`, and `join` now wait for every operator under the path they read, so they see evaluated values and no operator text. A list that reads itself, as in `l: [1, (( shuffle l ))]`, is now a cycle error in both modes. spruce accepts it and leaves operator text in the result, so this is a deliberate difference.
+
+- `concat` now refuses a map or a list as an argument. A map or a list that comes from an environment variable still prints, as it does in spruce.
+
+- `||` no longer falls back when its left side is an unknown operator, because an unknown operator is not a reason to fall back. An unset variable before `||` falls through to the next operand, so `(( $UNSET || "fb" ))` gives `fb`, `(( $UNSET || nope ))` now fails, and a chain moves on to the next operand. Before, the bare form gave an empty string.
+
+- An undefined alias in a merge list now fails with goccy's error. Before, it was ignored and the run exited with code 0.
+
+- No hook runs under an inline struct that goccy zeroes. The type error that 1.47.0 gave for a value that didn't fit the shadowed field is gone, and the result is the one goccy keeps.
+
+- `ips` over its own ancestor now reports a cycle error, where it used to report an IP or CIDR error.
+
+- In parallel mode, operators now receive canonical paths in `Dependencies`. A custom operator that compared paths written by name now waits for the operators it depends on.
+
+- `stringify`, `grab`, and `join` of a map now leave out the keys queued for pruning. That covers a `prune` with no earlier value, a `prune` over an earlier value, a `||` that falls back to `prune`, and a key given to `--prune`. spruce prints `null` or the earlier value for these keys in `stringify`, so this is a deliberate difference.
+
+- Every `(( prune ))` entry in a list that `prepend`, `append`, `insert`, or `replace` adds is now dropped, and every other entry stays. So `[(( prepend )), (( prune )), a, (( prune )), b]` onto `[z]` gives `[a, b, z]`. spruce loses an entry here and puts a `null` in its place, so this is a deliberate difference.
+
+- Any tag on a mapping now unwraps when the mapping is decoded into a struct or a map. So `!!set {a: null}` into a struct succeeds where it used to fail.
+
+### Fixed
+
+- A grab of its own ancestor used to hang, and it is now an error. A grab of an ancestor that is nested inside another operator's value gives the same recoverable cycle error.
+
+- A `? !!merge <<` key and a `!!str <<` key now parse. The first merges as a merge key, and the second is an ordinary key named `<<`.
+
+- `NewDocument`, `NewDocumentFromInterface`, and `Set` now accept typed Go slices and maps, such as a `[]string` or a `map[string][]string`, and they copy them. `NewDocumentFromInterface` now also takes a typed root map with string keys, such as `map[string][]string`.
+
+- A hook under a key that a later key replaces no longer runs, so a hook fills only an entry that survives in the result.
+
+- A tagged mapping now decodes into a struct or a map, where it failed with "tag was used where mapping is expected".
+
+- A pointer map key under a hook used to land on a nil key, and it now lands on its real key. A folded repeat is now last-wins. Keys that read alike but differ, such as `null` and `"null"`, or `1` and `"1"`, keep separate entries. NaN keys get one entry each, on the plain route too. In a pointer map, `"null": a` beside `null: b` keeps both entries.
+
+- `-1` on a line of its own now merges as the number -1. 1.47.0 gave the string `"-1"`, and spruce agrees with the new value.
+
+- In parallel mode, operator text no longer leaks into the output when `flatten`, `shuffle`, `join`, `stringify`, `inject`, `cartesian-product`, or `ips` read under a named list entry such as `jobs.web`.
+
+- `(( $UNSET || (( prune )) ))` and `(( nope || (( prune )) ))` used to panic. They now prune the key.
+
+- `calc` looked up a sibling wrongly under a bare `||` and gave a wrong value. It now gives the right one.
+
+- `Engine.Evaluate` used to leave a `(( prune ))` list entry and an array marker in the output as text. It now removes them.
+
 ## [1.47.0] - 2026-11-10
 
 This release adds the pieces of goccy's API that a program needs in order to move to `pkg/yaml` without importing goccy. It adds indent options, an ordered map type, a streaming encoder and decoder, and the `Unmarshaler` hook. The hook changes what happens for types that already have an `UnmarshalYAML(*yaml.Node) error` method, so please read the Changed section before you upgrade. Merge output doesn't change, so templates and the `graft` command give the same results as on 1.46.0.
