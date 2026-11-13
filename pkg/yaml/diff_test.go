@@ -203,3 +203,31 @@ func TestDiffReportWrite(t *testing.T) {
 		t.Errorf("writer error = %v", err)
 	}
 }
+
+// TestDiffKeepsTypedKeysApart checks that a bool, null, or int key and
+// the string spelled the same way are two keys, so changing one reports
+// one modification of the right value.
+func TestDiffKeepsTypedKeysApart(t *testing.T) {
+	for _, key := range []string{"true", "null", "1"} {
+		a := key + ": a\n\"" + key + "\": b\n"
+		b := key + ": a\n\"" + key + "\": c\n"
+		r, err := yaml.Diff([]byte(a), []byte(b), nil)
+		if err != nil {
+			t.Fatalf("Diff: %v", err)
+		}
+		changes := r.Changes()
+		if len(changes) != 1 {
+			t.Fatalf("%s: got %d changes, want 1", key, len(changes))
+		}
+		var from, to string
+		if err := changes[0].From.Decode(&from); err != nil {
+			t.Fatal(err)
+		}
+		if err := changes[0].To.Decode(&to); err != nil {
+			t.Fatal(err)
+		}
+		if from != "b" || to != "c" {
+			t.Errorf("%s: got %q to %q, want b to c", key, from, to)
+		}
+	}
+}

@@ -426,7 +426,7 @@ func mappingNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
 
 	for i := 0; i+1 < len(from.Content); i += 2 {
 		key, fromItem := from.Content[i], from.Content[i+1]
-		toItem, ok := findValueByKey(to, key.Value)
+		toItem, ok := findValueByKey(to, key)
 		if !ok {
 			removals = append(removals, key, fromItem)
 			continue
@@ -445,7 +445,7 @@ func mappingNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
 
 	for i := 0; i+1 < len(to.Content); i += 2 {
 		key, toItem := to.Content[i], to.Content[i+1]
-		if _, ok := findValueByKey(from, key.Value); !ok {
+		if _, ok := findValueByKey(from, key); !ok {
 			additions = append(additions, key, toItem)
 		}
 	}
@@ -823,16 +823,30 @@ func packChangesAndAddToResult(list []Diff, path Path, orderchanges []Detail, ad
 }
 
 // findValueByKey returns the value of the first entry of a mapping whose
-// key, with aliases followed on both key and value, is key.
-func findValueByKey(mapping *yamlnode.Node, key string) (*yamlnode.Node, bool) {
+// key, with aliases followed on both key and value, is the same key as
+// key. Two keys are the same when they have the same text and the same
+// YAML type, so the bool key true and the string key "true" differ.
+func findValueByKey(mapping, key *yamlnode.Node) (*yamlnode.Node, bool) {
+	want := keyTag(yamlnode.FollowAlias(key))
+	text := yamlnode.FollowAlias(key).Value
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
 		k, v := yamlnode.FollowAlias(mapping.Content[i]), yamlnode.FollowAlias(mapping.Content[i+1])
-		if k.Value == key {
+		if k.Value == text && keyTag(k) == want {
 			return v, true
 		}
 	}
 
 	return nil, false
+}
+
+// keyTag returns the YAML type of a mapping key, so that matching can
+// tell a key from the string spelled the same way. A key with no tag is
+// a string.
+func keyTag(k *yamlnode.Node) string {
+	if tag := yamlnode.ShortTag(k.Tag); tag != "" && tag != "!" {
+		return tag
+	}
+	return yamlnode.TagStr
 }
 
 // isCandidate reports whether node is a scalar that names one of the
