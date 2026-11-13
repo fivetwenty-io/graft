@@ -252,12 +252,8 @@ func prunedKeysByMap(ev *Evaluator) map[uintptr]map[string]bool {
 			continue
 		}
 		key := c.Pop()
-		parent, err := c.Resolve(ev.Tree)
-		if err != nil {
-			continue
-		}
-		pm, ok := parent.(map[string]interface{})
-		if !ok || pm == nil {
+		pm, ok := prunedKeyParent(ev, c)
+		if !ok {
 			continue
 		}
 		if _, ok := pm[key]; !ok {
@@ -273,6 +269,22 @@ func prunedKeysByMap(ev *Evaluator) map[uintptr]map[string]bool {
 		out[p][key] = true
 	}
 	return out
+}
+
+// prunedKeyParent returns the map at the path c, which holds a key that
+// will be pruned. A grab on the way that has not run yet is read
+// through, as resolvePastGrabs says.
+func prunedKeyParent(ev *Evaluator, c *tree.Cursor) (map[string]interface{}, bool) {
+	parent, err := c.Resolve(ev.Tree)
+	if pm, ok := parent.(map[string]interface{}); err == nil && ok {
+		return pm, pm != nil
+	}
+	parent, found := resolvePastGrabs(ev, c.Nodes)
+	if found != pastFound {
+		return nil, false
+	}
+	pm, ok := parent.(map[string]interface{})
+	return pm, ok && pm != nil
 }
 
 // dropPrunedKeys returns val with every key in pruned left out of the
