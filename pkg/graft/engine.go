@@ -676,7 +676,7 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 // (( prune )) list entries, which is all the merger would do to it, and
 // so does a document that holds itself, which the merger can't walk.
 func (e *DefaultEngine) prepareLists(data map[string]interface{}) error {
-	if detectCyclicValue(data) != nil || !holdsListWork(data) {
+	if holdsItself(data) || !holdsListWork(data) {
 		dropPruneEntries(data)
 		return nil
 	}
@@ -687,6 +687,12 @@ func (e *DefaultEngine) prepareLists(data map[string]interface{}) error {
 	clear(data)
 	maps.Copy(data, merged)
 	return nil
+}
+
+// holdsItself reports whether data holds itself at any depth, as a Go
+// caller's document can. The merger can't walk such a document.
+func holdsItself(data map[string]interface{}) bool {
+	return detectCyclicValue(data) != nil
 }
 
 // Diff computes the differences between a and b using
