@@ -239,6 +239,33 @@ Error never prints that cause. If goccy's own decode of the document fails
 first, no method runs, and that error comes back even when a method would
 also have failed.
 
+# Editing a file in place
+
+A Document, from ParseDocument, holds a file as the bytes it was read from,
+and Set and Delete change only the bytes they name. Comments, blank lines,
+quoting, and line breaks everywhere else stay as written, so a program can
+change a value in a file that people maintain by hand without reformatting
+it. A path names a node as graft's cursor paths do, such as "jobs.name=web",
+and Get returns the Node it names. Set replaces one scalar, and Delete
+removes one mapping entry or sequence item with its own comment lines. Both
+parse the edited text again and refuse unless nothing else in the document
+changed. A refusal wraps ErrUnsupportedEdit, ErrPathNotFound,
+ErrInvalidPath, or ErrAmbiguousPath, and it leaves the bytes as they were.
+A Document never adds a key. Set refuses a tagged or anchored value, and
+both methods refuse an input that holds a carriage return or a tab on a
+line the edit touches.
+This Document is not pkg/graft's Document, which holds decoded values.
+
+# Comparing two inputs
+
+Diff compares two YAML or JSON inputs, each of which may hold several
+documents, and returns the report that graft diff prints. Changes lists
+each difference with a path in the cursor syntax, a kind, and the nodes on
+either side, and Write prints the report in the layout graft diff uses.
+Comments and scalar styles do not count as differences. A failure to
+parse comes back as a *DecodeError, and inputs that Diff can't compare
+come back as a *DiffError.
+
 # Known limitations
 
 These behaviors follow from the decoder that graft shares with its merge.

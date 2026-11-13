@@ -141,6 +141,8 @@ result, err := graft.DiffDocuments(doc1, doc2, nil)
 
 `Engine.Diff(a, b)` is `DiffWithOptions(a, b, DefaultDiffOptions())`. `Engine.DiffWithOptions` swallows any error from the underlying comparison into an empty `DiffResult` (its method signature has no `error` return); use the package-level `DiffDocuments` directly when you need the error — for example, a `nil` `Document` argument.
 
+To compare raw YAML or JSON bytes without parsing them into documents first, use `yaml.Diff` from `pkg/yaml`, which is described in [Comparing Raw YAML with yaml.Diff](yaml-diff.md). To cancel a comparison with a context, use `Engine.DiffContext(ctx, a, b, opts)`. It returns the error that `DiffWithOptions` swallows, and a canceled context returns a nil `DiffResult` and an error that wraps `ctx.Err()`.
+
 ## Access Methods
 
 ### Changes
@@ -492,3 +494,5 @@ result := engine.Diff(doc1, doc2)
 - [Engine Interface](engine.md) - Creating diffs
 
 - [Document Interface](document.md) - Working with documents
+
+- [Comparing Raw YAML with yaml.Diff](yaml-diff.md) - Comparing two inputs held as bytes

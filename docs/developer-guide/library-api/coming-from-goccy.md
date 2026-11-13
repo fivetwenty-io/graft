@@ -52,6 +52,36 @@ out, err := yaml.MarshalWith(v, yaml.EncodeOptions{Indent: 4, IndentSequence: tr
 
 `Indent` accepts 0, which means 2, and 2 through 9. Any other value is an error. Without `IndentSequence`, a sequence sits at the column of its key.
 
+### Editing a document in place
+
+goccy programs that change a value in a file usually call `parser.ParseBytes` and then edit the `ast` they get back, or they decode, change, and encode the whole file. graft's counterpart is `yaml.Document`, which holds the file as its original bytes and changes only the bytes that an edit names.
+
+```go
+// goccy
+file, err := parser.ParseBytes(data, parser.ParseComments)
+// ... edit the ast, then file.String()
+
+// graft
+d, err := yaml.ParseDocument(data)
+err = d.Set("port", 9090)
+out := d.Bytes()
+```
+
+Comments, blank lines, quoting, and indentation outside the edit stay as written. A path names the node, as in `jobs.name=web.port`, and an edit that can't be made without changing other bytes is refused with an error that says why. See [Editing a File with yaml.Document](yaml-document.md) for the paths, the types `Set` accepts, and every refusal.
+
+### Comparing documents
+
+goccy has no comparison of its own, so programs write their own walk over two decoded values. graft's counterpart is `yaml.Diff`, which compares two YAML or JSON inputs with the engine that `graft diff` uses.
+
+```go
+r, err := yaml.Diff(before, after, nil)
+for _, c := range r.Changes() {
+    fmt.Println(c.Kind, c.Path)
+}
+```
+
+See [Comparing Raw YAML with yaml.Diff](yaml-diff.md) for the report, the options, and how paths read.
+
 ### Ordered maps
 
 goccy's `yaml.MapSlice` and `yaml.MapItem` have graft counterparts with the same names and the same fields.

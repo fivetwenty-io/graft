@@ -2,6 +2,8 @@
 
 The `Document` interface represents a parsed YAML/JSON document. It provides type-safe access to values, mutation methods, serialization, and cloning capabilities.
 
+This page describes the `Document` interface of `pkg/graft`, which holds decoded values and writes its output fresh. For edits that keep the rest of a file byte for byte, such as its comments and quoting, `pkg/yaml` has its own type. See [Editing a File with yaml.Document](yaml-document.md).
+
 ## Interface Definition
 
 ```go

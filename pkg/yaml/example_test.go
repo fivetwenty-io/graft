@@ -145,3 +145,58 @@ func ExampleMapSlice() {
 	// azs:
 	// - z1
 }
+
+func ExampleDocument_Set() {
+	d, err := yaml.ParseDocument([]byte("# service\nname: web   # shown in the UI\nport: 8080\n"))
+	if err != nil {
+		panic(err)
+	}
+	if err := d.Set("port", 9090); err != nil {
+		panic(err)
+	}
+	fmt.Print(string(d.Bytes()))
+	// Output:
+	// # service
+	// name: web   # shown in the UI
+	// port: 9090
+}
+
+func ExampleDocument_Set_refusal() {
+	d, err := yaml.ParseDocument([]byte("tags: [a, b]\n"))
+	if err != nil {
+		panic(err)
+	}
+	// A refused edit leaves the bytes as they were.
+	err = d.Set("tags", "c")
+	fmt.Println(errors.Is(err, yaml.ErrUnsupportedEdit))
+	fmt.Print(string(d.Bytes()))
+	// Output:
+	// true
+	// tags: [a, b]
+}
+
+func ExampleDocument_Delete() {
+	d, err := yaml.ParseDocument([]byte("a: 1\n# about b\nb: 2\nc: 3\n"))
+	if err != nil {
+		panic(err)
+	}
+	if err := d.Delete("b"); err != nil {
+		panic(err)
+	}
+	fmt.Print(string(d.Bytes()))
+	// Output:
+	// a: 1
+	// c: 3
+}
+
+func ExampleDiff() {
+	r, err := yaml.Diff([]byte("a: 1\nb: 2\n"), []byte("a: 1\nb: 3\n"), nil)
+	if err != nil {
+		panic(err)
+	}
+	for _, c := range r.Changes() {
+		fmt.Println(c.Kind, c.Path, c.From.Value, "->", c.To.Value)
+	}
+	// Output:
+	// modified b 2 -> 3
+}

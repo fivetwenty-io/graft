@@ -74,6 +74,8 @@ graph TB
 
 Programs that decode and encode YAML with goccy's `go-yaml` can read [Coming from goccy](coming-from-goccy.md) for what changes when they move to `pkg/yaml`.
 
+Two pages cover `pkg/yaml` APIs that work on raw bytes, with no `Engine` involved. [Editing a File with yaml.Document](yaml-document.md) changes values in a file without reformatting the rest of it, and [Comparing Raw YAML with yaml.Diff](yaml-diff.md) compares two inputs the way `graft diff` does.
+
 ## Data Flow
 
 ```mermaid
@@ -259,3 +261,7 @@ for _, config := range configs {
 - [History Interface](history-api.md) - Operation history and timeline
 
 - [Configuration Options](options.md) - Functional options for customization
+
+- [Editing a File with yaml.Document](yaml-document.md) - Byte-preserving edits to a YAML file
+
+- [Comparing Raw YAML with yaml.Diff](yaml-diff.md) - Comparing two YAML or JSON inputs

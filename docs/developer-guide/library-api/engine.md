@@ -45,6 +45,16 @@ type Engine interface {
     ParseFile(path string) (Document, error)
     ParseReader(reader io.Reader) (Document, error)
 
+    // Context variants of parsing, diffing, and output
+    ParseYAMLContext(ctx context.Context, data []byte) (Document, error)
+    ParseJSONContext(ctx context.Context, data []byte) (Document, error)
+    ParseFileContext(ctx context.Context, path string) (Document, error)
+    ParseReaderContext(ctx context.Context, r io.Reader) (Document, error)
+    DiffContext(ctx context.Context, a, b Document, opts *DiffOptions) (DiffResult, error)
+    ToYAMLContext(ctx context.Context, doc Document) ([]byte, error)
+    ToJSONContext(ctx context.Context, doc Document) ([]byte, error)
+    ToJSONIndentContext(ctx context.Context, doc Document, indent string) ([]byte, error)
+
     // Merging
     Merge(ctx context.Context, docs ...Document) MergeBuilder
     MergeFiles(ctx context.Context, paths ...string) MergeBuilder
@@ -95,6 +105,16 @@ type Engine interface {
 `Engine` is not intended to be implemented outside this package; `NewEngine` only ever returns `*DefaultEngine`. `Configure` (see [Configuration Methods](#configuration-methods) below) is a method on `*DefaultEngine`, not part of this interface.
 
 `WithLogger`/`WithVaultClient`/`WithAWSConfig` are no-op methods that return the receiver unchanged — see [Deprecated Options](options.md#deprecated-options) for why, and for the distinct, functional `graft.WithLogger(logger) Option` of a similar name.
+
+## Context Methods
+
+Eight methods take a `context.Context` as their first argument. They are `ParseYAMLContext`, `ParseJSONContext`, `ParseFileContext`, `ParseReaderContext`, `DiffContext`, `ToYAMLContext`, `ToJSONContext`, and `ToJSONIndentContext`. Each one does what its plain form does while the context is live, and the plain forms now call them with `context.Background()`.
+
+Once the context is done, a call stops and returns an error that wraps `ctx.Err()`, so `errors.Is(err, context.Canceled)` and `errors.Is(err, context.DeadlineExceeded)` both work. The methods check the context on entry and again after the work, so a call that finishes after the context is canceled returns the cancellation and discards its result. The error text names the step that stopped and never quotes a value.
+
+`Evaluate` and `Merge` already took a context. Evaluation stops between operators in both the sequential and the parallel mode. The evaluator checks the context before it starts each operator, and a canceled context ends the run with the cancellation error alone. An operator that is already running is allowed to finish, so a slow backend call can delay the stop. In parallel mode, a wave waits for the operators it has running before it returns. On the default pool of one worker, a canceled call can also wait behind tasks that other callers queued earlier.
+
+`DiffContext` has one difference from `DiffWithOptions`. The plain form has no error return, so it turns a failed comparison into an empty result, and the context form returns the error, including the error for a nil document.
 
 ## Creating an Engine
 
@@ -526,6 +546,10 @@ fmt.Println("Database host:", host)
 ```
 
 **Edge Cases:**
+
+- `Evaluate` first does to the document's lists what a merge of that document alone does. It resolves each array marker, such as `(( append ))`, and removes each `(( prune ))` entry from a list, so an index into a list counts only the entries that stay.
+
+- `Evaluate` resolves the operators in `doc` itself, and it removes the keys they prune from `doc` itself. The document must not be used by another call while `Evaluate` runs, and it holds the evaluated result once the call returns. A caller that needs the document as it was should pass `doc.Clone()`.
 
 - Circular references are detected and return an error
 
