@@ -669,9 +669,23 @@ func renderValueScalarAs(s string, requested scalarStyle, column, indent, bestIn
 	value := []byte(s)
 	a := analyzeScalar(value)
 	style := selectScalarStyle(value, requested, a, false)
+	if style == literalScalarStyle && !hintFits(value, bestIndent) {
+		style = doubleQuotedScalarStyle
+	}
 	w := scalarWriter{column: column, indent: indent, whitespace: true, indention: indention, bestIndent: bestIndent}
 	w.writeScalar(value, style, false)
 	return string(w.buf)
+}
+
+// hintFits reports whether a block scalar of value can carry the indent
+// hint writeBlockScalarHints gives it. A hint is one digit from 1 to 9,
+// and a value that opens with neither a space nor a break needs none.
+func hintFits(value []byte, bestIndent int) bool {
+	if !isSpace(value, 0) && !isBreak(value, 0) {
+		return true
+	}
+	hint := effectiveIndent(bestIndent)
+	return hint >= 1 && hint <= 9
 }
 
 // renderSimpleKeyAs returns spruce's text for string s written as a
