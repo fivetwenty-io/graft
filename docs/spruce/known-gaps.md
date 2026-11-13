@@ -247,7 +247,7 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Current behavior.** A resolution error for a reference that holds a `$NAME` prints the path with the variable's value in it, as 1.47.0 and spruce do. The new text that 1.48.0 adds never quotes a value.
 
-**Expected behavior.** An error that never quotes a value.
+**Expected behavior.** The error would never quote a value.
 
 **Impact.** Genesis reads this wording, so we left it alone. A log that keeps these errors holds the variable's value.
 
@@ -255,7 +255,7 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Current behavior.** When a document has several bad values and one of them sits in an inline map, `pkg/yaml` reports the earliest one by position in the document, and the result is the same on every run. Four limits remain on that search. When two errors have no line and sit on different lines, which 1.47.0 shares, the pick can still vary. The search costs about ten times as much as before on the error path at nesting depth 1000, which is 2.1 seconds. A result that hit the round cap is the same on every run but may not be the earliest. And three fallback paths still return goccy's random pick when an inline map holds several bad values. Those are a caller method that panics partway through the search, a panic in the first round, and a first round that finds no error with a position, such as when a validating `UnmarshalYAML` refuses a mapping that was cut short. The search drops a shared node at every site where it appears, as 1.47.0 does.
 
-**Expected behavior.** The earliest error on every run, at the cost of one decode.
+**Expected behavior.** The earliest error would come back on every run, at the cost of one decode.
 
 **Impact.** The failure itself is the same in every case, and only which of several bad values the message names can differ. The cost applies on the error path only.
 
@@ -482,7 +482,7 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 **Graft behavior.** A `$NAME` node in a reference path is replaced once, when graft parses the operator call, so the dependency order sees the real path. With `GRAFT_T_XX=ab`, the line `aa: (( concat "x-" mm.$GRAFT_T_XX.v ))` waits for `mm.ab.v` and gives `x-ab`. A variable whose value starts with `$` is not expanded again. The arguments of `(( defer ))` and the operators that write their call back for a later pass keep `$NAME` as written.
 
-**Spruce behavior.** spruce works out the order of operators from the path as written, and replaces `$NAME` only when the operator runs. So it doesn't know that `aa` reads `mm.ab.v`, it runs `aa` first because `aa` sorts before `mm`, and it writes `aa: x-(( concat "a" "b" ))` and exits with code 0.
+**Spruce behavior.** spruce works out the order of operators from the path as written, and replaces `$NAME` only when the operator runs. So it doesn't know that `aa` reads `mm.ab.v`. It runs `aa` first because `aa` sorts before `mm`, writes `aa: x-(( concat "a" "b" ))`, and exits with code 0.
 
 **Impact.** We keep this on purpose, because operator text in the output is never what a template means. A template whose reader sorts before the value it reads gets the value in graft. A variable whose value starts with `$` is a key and not a second variable. The new fixture `env-segment-order` records the difference.
 
