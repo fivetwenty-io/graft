@@ -1,6 +1,7 @@
 package oploc
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -50,6 +51,12 @@ func TestRefuseAncestor(t *testing.T) {
 func TestRefuseSelfHolding(t *testing.T) {
 	root, q, l := ancestorTree()
 	at := func(p string) *tree.Cursor { return cursors(t, p)[0] }
+	// Copies equal to q and l but held apart from them, so only the
+	// identity of a container counts.
+	_, qCopy, lCopy := ancestorTree()
+	if !reflect.DeepEqual(qCopy, q) || !reflect.DeepEqual(lCopy, l) {
+		t.Fatal("the copies differ from the originals")
+	}
 	cases := []struct {
 		name string
 		here string
@@ -61,7 +68,9 @@ func TestRefuseSelfHolding(t *testing.T) {
 		{"its own list", "q.l.1", l, "$.q.l.1 reads $.q.l"},
 		{"the map above its list", "q.l.1", q, "$.q.l.1 reads $.q"},
 		{"another map", "qa.x", q, ""},
-		{"a copy", "q.b", map[string]interface{}{"a": 1}, ""},
+		{"another map with one of its keys", "q.b", map[string]interface{}{"a": 1}, ""},
+		{"an equal copy of its map", "q.b", qCopy, ""},
+		{"an equal copy of its list", "q.l.1", lCopy, ""},
 		{"an empty list", "q.l.1", []interface{}{}, ""},
 		{"a scalar", "q.b", "q", ""},
 	}

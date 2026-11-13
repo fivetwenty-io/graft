@@ -125,20 +125,24 @@ func TestGrabOfASiblingStillWorks(t *testing.T) {
 }
 
 func TestBareReferenceToAnAncestorFallsBack(t *testing.T) {
-	cases := map[string]string{
-		"one edge":  "q:\n  a: 1\n  c: (( q || \"fb\" ))\n",
-		"two edges": "q:\n  a: 1\n  b: (( q || \"fb\" ))\n  c:\n    y: (( q || \"fb\" ))\n",
+	cases := map[string]struct {
+		src   string
+		paths []string
+	}{
+		"one edge": {"q:\n  a: 1\n  c: (( q || \"fb\" ))\n", []string{"q.c"}},
+		"two edges": {"q:\n  a: 1\n  b: (( q || \"fb\" ))\n  c:\n    y: (( q || \"fb\" ))\n",
+			[]string{"q.b", "q.c.y"}},
 	}
-	for name, src := range cases {
+	for name, tc := range cases {
 		for _, parallel := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%s/parallel=%v", name, parallel), func(t *testing.T) {
-				out, err := evaluateWithin(t, parallel, src)
+				out, err := evaluateWithin(t, parallel, tc.src)
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, path := range []string{"q.c", "q.b", "q.c.y"} {
-					if v, err := out.GetString(path); err == nil && v != "fb" {
-						t.Errorf("%s = %q, want fb", path, v)
+				for _, path := range tc.paths {
+					if v, err := out.GetString(path); err != nil || v != "fb" {
+						t.Errorf("%s = %q, %v, want fb", path, v, err)
 					}
 				}
 				if v, _ := out.GetInt("q.a"); v != 1 {

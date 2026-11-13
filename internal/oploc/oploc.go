@@ -5,6 +5,11 @@
 // builds the index for the operator paths it hands to Dependencies. The
 // operators package reads it through a hook that pkg/graft installs, so
 // the evaluator exports no field for it.
+//
+// The package also holds the cycle guards in ancestor.go. RefuseAncestor
+// refuses an operator that reads a path holding it, and
+// RefuseSelfHolding refuses a value that would make an ancestor of the
+// operator hold itself.
 package oploc
 
 import (
