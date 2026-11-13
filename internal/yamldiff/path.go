@@ -66,46 +66,62 @@ func (e PathElement) Step(n *yamlnode.Node, from bool) (*yamlnode.Node, bool) {
 	var found *yamlnode.Node
 	switch {
 	case e.Key != "":
-		if e.id == nil || n.Kind != yamlnode.SequenceNode {
-			return nil, false
-		}
-		for _, entry := range n.Content {
-			name, err := e.id.Name(entry)
-			if err != nil || name != e.Name {
-				continue
-			}
-			if found != nil {
-				return nil, false
-			}
-			found = entry
-		}
+		found = e.namedEntry(n)
 	case e.Idx >= 0:
-		if n.Kind != yamlnode.SequenceNode || e.Idx >= len(n.Content) {
-			return nil, false
+		if n.Kind == yamlnode.SequenceNode && e.Idx < len(n.Content) {
+			found = n.Content[e.Idx]
 		}
-		found = n.Content[e.Idx]
 	default:
-		if n.Kind != yamlnode.MappingNode {
-			return nil, false
-		}
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			k := n.Content[i]
-			if !from {
-				k = yamlnode.FollowAlias(k)
-			}
-			if k.Value != e.Name {
-				continue
-			}
-			if found != nil {
-				return nil, false
-			}
-			found = n.Content[i+1]
-		}
+		found = e.mapValue(n, from)
 	}
 	if found == nil {
 		return nil, false
 	}
 	return yamlnode.FollowAlias(found), true
+}
+
+// namedEntry returns the one entry of the list n that e names, or nil
+// when n is not a list or holds no such entry, or more than one.
+func (e PathElement) namedEntry(n *yamlnode.Node) *yamlnode.Node {
+	if e.id == nil || n.Kind != yamlnode.SequenceNode {
+		return nil
+	}
+	var found *yamlnode.Node
+	for _, entry := range n.Content {
+		name, err := e.id.Name(entry)
+		if err != nil || name != e.Name {
+			continue
+		}
+		if found != nil {
+			return nil
+		}
+		found = entry
+	}
+	return found
+}
+
+// mapValue returns the value of the one key of the map n that e names,
+// or nil when n is not a map or holds no such key, or more than one. A
+// key on the from side is matched as written, and not through an alias.
+func (e PathElement) mapValue(n *yamlnode.Node, from bool) *yamlnode.Node {
+	if n.Kind != yamlnode.MappingNode {
+		return nil
+	}
+	var found *yamlnode.Node
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		k := n.Content[i]
+		if !from {
+			k = yamlnode.FollowAlias(k)
+		}
+		if k.Value != e.Name {
+			continue
+		}
+		if found != nil {
+			return nil
+		}
+		found = n.Content[i+1]
+	}
+	return found
 }
 
 // Path points to a section of a document by naming each step from the

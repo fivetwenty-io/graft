@@ -294,7 +294,7 @@ func pathStep(e yamldiff.PathElement, first bool) (string, bool) {
 		return strconv.Itoa(e.Idx), true
 	}
 	return e.Name, e.Name != "" && !strings.ContainsAny(e.Name, "[]") &&
-		!(first && e.Name == "$")
+		(!first || e.Name != "$")
 }
 
 // wrongStep walks steps through root as Document does, beside the

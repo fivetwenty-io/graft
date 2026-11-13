@@ -2,6 +2,7 @@ package yaml_test
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/yaml"
@@ -217,7 +218,7 @@ func TestDiffPathsForKubernetesResourcesAreRefused(t *testing.T) {
 			"- apiVersion: v1\n  kind: Pod\n  metadata: {name: a}\n" +
 			"  resource: v1/Pod/b\n  spec: {x: 1}\n" +
 			"- apiVersion: v1\n  kind: Pod\n  metadata: {name: b}\n" +
-			"  resource: v1/Pod/a\n  spec: {x: " + string(rune('0'+v)) + "}\n"
+			"  resource: v1/Pod/a\n  spec: {x: " + strconv.Itoa(v) + "}\n"
 	}
 	changes := checkChangePaths(t, res(1), res(2))
 	if len(changes) != 1 {
