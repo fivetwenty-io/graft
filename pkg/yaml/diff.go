@@ -154,12 +154,13 @@ func Diff(a, b []byte, opts *DiffOptions) (*DiffReport, error) {
 	}
 
 	from, to := newDiffConverter(a), newDiffConverter(b)
+	index := yamldiff.NewKeyIndex()
 	var changes []Change
 	for _, d := range report.Diffs {
 		document, path := -1, ""
 		if d.Path != nil {
 			document = d.Path.DocumentIdx
-			path = diffPath(d.Path.PathElements, diffRoots(report, d.Path))
+			path = diffPath(d.Path.PathElements, diffRoots(report, d.Path), index)
 		}
 		for _, detail := range d.Details {
 			changes = append(changes, Change{
@@ -254,7 +255,7 @@ func documentValue(docs []*yamlnode.Node, idx int) *yamlnode.Node {
 // different node, is written with a leading ']'. Every segment before it
 // is well formed, so Document refuses the whole path as invalid rather
 // than reading it as some other node.
-func diffPath(elements []yamldiff.PathElement, roots []diffRoot) string {
+func diffPath(elements []yamldiff.PathElement, roots []diffRoot, ix *yamldiff.KeyIndex) string {
 	parts := make([]string, len(elements))
 	steps := make([]string, len(elements))
 	bad := -1
@@ -269,7 +270,7 @@ func diffPath(elements []yamldiff.PathElement, roots []diffRoot) string {
 	}
 	if bad < 0 {
 		for _, root := range roots {
-			if i := wrongStep(root, elements, steps); i >= 0 && (bad < 0 || i < bad) {
+			if i := wrongStep(root, elements, steps, ix); i >= 0 && (bad < 0 || i < bad) {
 				bad = i
 			}
 		}
@@ -301,30 +302,34 @@ func pathStep(e yamldiff.PathElement, first bool) (string, bool) {
 // comparison's own walk of elements, and returns the index of the first
 // step that reaches a different node, or -1. A step Document can't take
 // at all ends the walk with -1, since Document then refuses the path.
-func wrongStep(root diffRoot, elements []yamldiff.PathElement, steps []string) int {
+// ix finds map entries without scanning, and serves every path under a
+// map from one pass over it.
+func wrongStep(root diffRoot, elements []yamldiff.PathElement, steps []string, ix *yamldiff.KeyIndex) int {
 	cur := root.node
 	for i, e := range elements {
-		want, ok := e.Step(cur, root.from)
+		want, ok := e.StepIndexed(cur, root.from, ix)
 		if !ok {
 			return i
 		}
 		cur = yamlnode.FollowAlias(cur)
-		var (
-			idx int
-			err error
-		)
+		var found *yamlnode.Node
 		switch cur.Kind {
 		case yamlnode.MappingNode:
-			idx, _, err = findKey(cur, steps[i])
+			value, count := ix.ScalarValue(cur, steps[i])
+			if count != 1 {
+				return -1
+			}
+			found = value
 		case yamlnode.SequenceNode:
-			idx, _, err = findItem(cur, steps[i])
+			idx, _, err := findItem(cur, steps[i])
+			if err != nil {
+				return -1
+			}
+			found = cur.Content[idx]
 		default:
 			return -1
 		}
-		if err != nil {
-			return -1
-		}
-		if yamlnode.FollowAlias(cur.Content[idx]) != want {
+		if yamlnode.FollowAlias(found) != want {
 			return i
 		}
 		cur = want

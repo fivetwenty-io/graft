@@ -59,6 +59,12 @@ type PathElement struct {
 // entry is matched by its key as written, and not through an alias. It
 // reports false when n holds no such node, or more than one.
 func (e PathElement) Step(n *yamlnode.Node, from bool) (*yamlnode.Node, bool) {
+	return e.StepIndexed(n, from, nil)
+}
+
+// StepIndexed is Step, finding a map entry through ix when ix is not
+// nil, so that many steps under one map don't each scan it.
+func (e PathElement) StepIndexed(n *yamlnode.Node, from bool, ix *KeyIndex) (*yamlnode.Node, bool) {
 	n = yamlnode.FollowAlias(n)
 	if n == nil {
 		return nil, false
@@ -72,7 +78,7 @@ func (e PathElement) Step(n *yamlnode.Node, from bool) (*yamlnode.Node, bool) {
 			found = n.Content[e.Idx]
 		}
 	default:
-		found = e.mapValue(n, from)
+		found = e.mapValue(n, from, ix)
 	}
 	if found == nil {
 		return nil, false
@@ -103,9 +109,16 @@ func (e PathElement) namedEntry(n *yamlnode.Node) *yamlnode.Node {
 // mapValue returns the value of the one key of the map n that e names,
 // or nil when n is not a map or holds no such key, or more than one. A
 // key on the from side is matched as written, and not through an alias.
-func (e PathElement) mapValue(n *yamlnode.Node, from bool) *yamlnode.Node {
+func (e PathElement) mapValue(n *yamlnode.Node, from bool, ix *KeyIndex) *yamlnode.Node {
 	if n.Kind != yamlnode.MappingNode {
 		return nil
+	}
+	if ix != nil {
+		value, count := ix.Value(n, e.Name, from)
+		if count != 1 {
+			return nil
+		}
+		return value
 	}
 	var found *yamlnode.Node
 	for i := 0; i+1 < len(n.Content); i += 2 {
