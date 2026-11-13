@@ -77,11 +77,12 @@ func TestMarshalWithIndentPlacesGraftScalars(t *testing.T) {
 			"e":    "",
 			"lead": "  lead\nx\n",
 			"keep": "a\nb\n\n",
+			"lits": []any{"a\nb\n", "x\n\ny", "  lead\n"},
 			"s":    []any{"on", "x: y", map[string]any{"deep": "l1\nl2"}},
 		},
 		strings.Repeat("k", 1100): map[string]any{"z": "zv", "y": []any{"a"}},
 	}
-	for _, opts := range []yaml.EncodeOptions{{Indent: 3}, {Indent: 4}, {Indent: 4, IndentSequence: true}, {Indent: 9, IndentSequence: true}} {
+	for _, opts := range []yaml.EncodeOptions{{Indent: 3}, {Indent: 4}, {Indent: 9}, {Indent: 4, IndentSequence: true}, {Indent: 9, IndentSequence: true}} {
 		t.Run(strconv.Itoa(opts.Indent)+"/"+strconv.FormatBool(opts.IndentSequence), func(t *testing.T) {
 			t.Parallel()
 			out, err := yaml.MarshalWith(v, opts)
@@ -100,9 +101,12 @@ func TestMarshalWithIndentPlacesGraftScalars(t *testing.T) {
 			for i, l := range lines {
 				if strings.HasPrefix(l, strings.Repeat(" ", opts.Indent)+"long: ") {
 					matched++
-					// A folded line continues at the key's column plus the indent.
-					if want := strings.Repeat(" ", 2*opts.Indent) + "word"; !strings.HasPrefix(lines[i+1], want) {
-						t.Errorf("continuation %q, want prefix %q", lines[i+1], want)
+					// Every folded line continues at the key's column plus the indent.
+					want := strings.Repeat(" ", 2*opts.Indent)
+					for j := i + 1; j < len(lines) && strings.HasPrefix(lines[j], want) && !strings.Contains(lines[j], ": "); j++ {
+						if !strings.HasPrefix(lines[j], want+"word") {
+							t.Errorf("continuation line %d is %q, want prefix %q", j+1, lines[j], want+"word")
+						}
 					}
 				}
 			}

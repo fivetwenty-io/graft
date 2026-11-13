@@ -109,10 +109,16 @@ type Layout struct {
 
 // indent is the indent the layout asks for, with the zero value read as 2.
 func (l Layout) indent() int {
-	if l.Indent == 0 {
+	return effectiveIndent(l.Indent)
+}
+
+// effectiveIndent returns the indent a layout asks for, with 0 meaning
+// the default of two spaces.
+func effectiveIndent(indent int) int {
+	if indent == 0 {
 		return scalarBestIndent
 	}
-	return l.Indent
+	return indent
 }
 
 // MarshalYAMLTypedLayout is MarshalYAMLTyped with the indentation layout

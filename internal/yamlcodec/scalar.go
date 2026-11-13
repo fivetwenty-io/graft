@@ -588,11 +588,8 @@ func (w *scalarWriter) writeDoubleQuoted(value []byte, allowBreaks bool) {
 // chomping indicator.
 func (w *scalarWriter) writeBlockScalarHints(value []byte) {
 	if isSpace(value, 0) || isBreak(value, 0) {
-		hint := w.bestIndent
-		if hint == 0 {
-			hint = scalarBestIndent
-		}
-		w.writeIndicator(string(rune('0'+hint)), false, false)
+		hint := effectiveIndent(w.bestIndent)
+		w.writeIndicator(strconv.Itoa(hint), false, false)
 	}
 	chomp := ""
 	if len(value) == 0 {
