@@ -434,6 +434,14 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 **Impact.** We keep this on purpose. A template that writes `(( prune ))` in a list means the entry to go, so graft removes it at every depth, and every reader of the list sees the same entries the output holds. A template that relied on the `null` has to write `~` in place of the prune entry.
 
+### prune-entries-in-an-added-list-all-go
+
+**Graft behavior.** When a list is added to another one by `(( prepend ))`, by `(( append ))`, or by `--fallback-append`, each `(( prune ))` entry in it is dropped and every other entry stays, however many prune entries the list holds. Merging `l: [(( prepend )), (( prune )), a, (( prune )), b]` onto `l: [z]` gives `[a, b, z]`, and the same entries appended give `[z, a, b]`. The entries go before any operator runs, so with `l: [(( prepend )), (( prune )), a]` onto `l: [z]`, a `(( grab l.0 ))` gets `a`. An inline merge already worked this way, and `Engine.Evaluate` gives the same result as a merge.
+
+**Spruce behavior.** spruce keeps the prune entries in the added list and removes them by index after evaluation, one at a time, from a list that gets shorter with each removal. With two prune entries, the second removal lands on the wrong entry, so the prepend above gives `[a, null, z]` and loses `b`, and the append gives `[z, a, null]`. A grab of a slot that holds a prune entry gets `null`.
+
+**Impact.** We keep this on purpose. A template that writes `(( prune ))` in a list it adds means that entry to go, and spruce's result drops an entry the template kept and puts a `null` in its place. A template that relied on the `null` has to write `~` in place of the prune entry.
+
 ### dash-line-inside-a-flow-collection-is-an-error
 
 **Graft behavior.** A plain scalar in a flow collection that continues onto a line starting with `- ` fails to parse. That covers `a: {b: [x` followed by a line `- w]}`, and `a:` followed by `  - [w` and `    - w]`. The error names the line and column of the dash and says that a block sequence entry cannot appear inside a flow collection. The same error covers every other `- ` inside a flow collection, such as `a: [x,` followed by `- w]` and `a: [x, - w]`, which spruce refuses too.

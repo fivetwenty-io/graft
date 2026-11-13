@@ -191,6 +191,11 @@ type ModificationDefinition struct {
 	name     string
 	relative string
 
+	// adds is set for a prepend or an append, whose list drops its
+	// (( prune )) entries, since there is no entry of the original
+	// list at their place for them to prune.
+	adds bool
+
 	list []interface{}
 }
 
@@ -811,8 +816,12 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, at mergePath) [
 		}
 
 		if modificationDefinition.listOp != listOpDelete {
-			log.DEBUG("%s: inserting %d new elements to existing array at index %d", node, len(modificationDefinition.list), idx)
-			result = insertIntoList(result, idx, modificationDefinition.list)
+			list := modificationDefinition.list
+			if modificationDefinition.adds {
+				list = withoutPruneEntries(list)
+			}
+			log.DEBUG("%s: inserting %d new elements to existing array at index %d", node, len(list), idx)
+			result = insertIntoList(result, idx, list)
 		} else {
 			log.DEBUG("%s: deleting element at array index %d", node, idx)
 			result = deleteIndexFromList(result, idx)
@@ -849,7 +858,7 @@ func (m *Merger) mergeArrayDefault(orig, n []interface{}, at mergePath) []interf
 	}
 
 	if m.AppendByDefault {
-		return append(orig, n...)
+		return append(orig, withoutPruneEntries(n)...)
 	}
 	return m.mergeArrayInline(orig, n, at)
 }
@@ -1036,11 +1045,11 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 			continue
 
 		case appendRegEx.MatchString(e): // check for (( append ))
-			result = append(result, ModificationDefinition{listOp: listOpInsert, index: -1})
+			result = append(result, ModificationDefinition{listOp: listOpInsert, index: -1, adds: true})
 			continue
 
 		case prependRegEx.MatchString(e): // check for (( prepend ))
-			result = append(result, ModificationDefinition{listOp: listOpInsert, index: 0})
+			result = append(result, ModificationDefinition{listOp: listOpInsert, index: 0, adds: true})
 			continue
 
 		case insertByIdxRegEx.MatchString(e): // check for (( insert ... <idx> ))
@@ -1153,6 +1162,30 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 	}
 
 	return result
+}
+
+// withoutPruneEntries returns list without its (( prune )) entries. A
+// list a merge adds to another, rather than merging entry by entry,
+// drops them this way, so each one goes and every other entry stays,
+// however many the list holds. list is returned as it is when it holds
+// none.
+func withoutPruneEntries(list []interface{}) []interface{} {
+	var out []interface{}
+	for i, e := range list {
+		if s, ok := e.(string); ok && pruneRx.MatchString(s) {
+			if out == nil {
+				out = append(make([]interface{}, 0, len(list)), list[:i]...)
+			}
+			continue
+		}
+		if out != nil {
+			out = append(out, e)
+		}
+	}
+	if out == nil {
+		return list
+	}
+	return out
 }
 
 // containsMapEntry reports whether list has any map[string]interface{}
