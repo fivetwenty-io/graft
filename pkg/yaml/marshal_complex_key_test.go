@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -24,6 +25,19 @@ func TestComplexKeyPadding(t *testing.T) {
 		"nested": map[string]any{"y": []any{"a", []any{"b"}}},
 	}
 	for name, val := range values {
+		// want is the value read back from the default layout, so its
+		// numbers have the types Unmarshal gives.
+		plain, err := yaml.Marshal(map[string]any{key: val})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want map[string]any
+		if err := yaml.Unmarshal(plain, &want); err != nil {
+			t.Fatal(err)
+		}
+		if fmt.Sprint(want[key]) != fmt.Sprint(val) {
+			t.Fatalf("%s: default layout reads back as %v, want %v", name, want[key], val)
+		}
 		for indent := 2; indent <= 9; indent++ {
 			for _, seq := range []bool{false, true} {
 				opts := yaml.EncodeOptions{Indent: indent, IndentSequence: seq}
@@ -34,6 +48,9 @@ func TestComplexKeyPadding(t *testing.T) {
 				var back map[string]any
 				if err := yaml.Unmarshal(out, &back); err != nil {
 					t.Fatalf("%s/%d/%v does not read back: %v", name, indent, seq, err)
+				}
+				if !reflect.DeepEqual(back, want) {
+					t.Errorf("%s/%d/%v reads back as a different value", name, indent, seq)
 				}
 				golden := filepath.Join("testdata", "complex-key", fmt.Sprintf("%s-%d-%v.golden", name, indent, seq))
 				shown := strings.ReplaceAll(string(out), key, "<KEY>")
