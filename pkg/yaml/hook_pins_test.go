@@ -40,15 +40,20 @@ func TestHookRunsOncePerPlace(t *testing.T) {
 }
 
 func TestHookUnderMergeSeesTheLaterKey(t *testing.T) {
-	pinCalls = nil
-	var v struct {
-		M pinHolder `yaml:"m"`
-	}
-	if err := yaml.Unmarshal([]byte("base: &b {h: x}\nm:\n  <<: *b\n  h: y\n"), &v); err != nil {
-		t.Fatal(err)
-	}
-	if len(pinCalls) != 1 || v.M.H.Val != "y" {
-		t.Errorf("calls %d, value %+v", len(pinCalls), v)
+	for src, want := range map[string]string{
+		"base: &b {h: x}\nm:\n  <<: *b\n  h: y\n": "y",
+		"base: &b {h: x}\nm:\n  h: y\n  <<: *b\n": "x",
+	} {
+		pinCalls = nil
+		var v struct {
+			M pinHolder `yaml:"m"`
+		}
+		if err := yaml.Unmarshal([]byte(src), &v); err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		if len(pinCalls) != 1 || v.M.H.Val != want {
+			t.Errorf("%q: calls %d, value %+v, want %s", src, len(pinCalls), v, want)
+		}
 	}
 }
 
@@ -84,16 +89,18 @@ func TestHookRefusalsRunNoHook(t *testing.T) {
 }
 
 func TestHookSeesTimestampAndBinaryTags(t *testing.T) {
-	for src, tag := range map[string]string{
-		"h: !!timestamp 2026-01-02\n": "!!timestamp",
-		"h: !!binary aGk=\n":          "!!binary",
+	for src, want := range map[string][2]string{
+		"h: !!timestamp 2026-01-02\n": {"!!timestamp", "2026-01-02"},
+		"h: !!binary aGk=\n":          {"!!binary", "aGk="},
 	} {
 		pinCalls = nil
 		var v pinHolder
 		if err := yaml.Unmarshal([]byte(src), &v); err != nil {
 			t.Fatalf("%q: %v", src, err)
 		}
-		if len(pinCalls) != 1 || pinCalls[0].Tag != tag {
+		// The hook gets the text as written, not the decoded value.
+		if len(pinCalls) != 1 || pinCalls[0].Tag != want[0] ||
+			pinCalls[0].Value != want[1] {
 			t.Errorf("%q: calls %+v", src, pinCalls)
 		}
 	}
