@@ -49,7 +49,7 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 - Every `(( prune ))` entry in a list that `prepend`, `append`, `insert`, or `replace` adds is now dropped, and every other entry stays. So `[(( prepend )), (( prune )), a, (( prune )), b]` onto `[z]` gives `[a, b, z]`. spruce loses an entry here and puts a `null` in its place, so this is a deliberate difference. A keyed insert such as `(( insert after name z ))` that holds prune entries now works too, where spruce and 1.47.0 fail with an error.
 
-- An inline merge now keeps a list entry such as `"(( prune )) x"` as a string, both inside and past the end of the original list, where 1.47.0 dropped it or replaced it. This matches spruce.
+- An inline merge now keeps a list entry such as `"(( prune )) x"` as a string when it falls past the end of the original list, where 1.47.0 dropped it or replaced it. This matches spruce. An entry that lines up with an original entry still prunes that entry, as it did in 1.47.0.
 
 - Any tag on a mapping now unwraps when the mapping is decoded into a struct or a map. So `!!set {a: null}` into a struct succeeds where it used to fail with "tag was used where mapping is expected".
 
@@ -73,7 +73,7 @@ This release adds two things to `pkg/yaml` that a program needs in order to edit
 
 - `calc` looked up a sibling wrongly under a bare `||` and gave a wrong value. It now gives the right one.
 
-- `graft diff` and `yaml.Diff` used to treat a bool, null, or int key and the string spelled the same way as one key, such as `true` and `"true"`. A change to one of them could be reported against the other, and it now is reported against the right one.
+- `graft diff` and `yaml.Diff` used to treat a bool, null, or int key and the string spelled the same way as one key, such as `true` and `"true"`, so a change to one of them could be reported against the other. They now pair keys by text and YAML type first, then pair a leftover key by text alone when exactly one key on each side has that text. So `true` and `"true"` in one map stay separate, and a JSON `{"1": "a"}` still diffs clean against the YAML `1: a`.
 
 ## [1.47.0] - 2026-11-10
 
