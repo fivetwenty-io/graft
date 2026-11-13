@@ -918,9 +918,9 @@ func (m *Merger) mergeArrayInline(orig, n []interface{}, at mergePath) []interfa
 			switch {
 			case isPruneEntry(n[i]):
 			case prunedIndices[i]:
-				// More text follows the call, so the entry is a
-				// plain string, which mergeObj would take for a
-				// prune call.
+				// More text follows the call, so the entry
+				// is a plain string, which mergeObj would
+				// take for a prune call.
 				merged = append(merged, n[i])
 			default:
 				mergedItem := m.mergeObj(nil, n[i], at.index(i))
