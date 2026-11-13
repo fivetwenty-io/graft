@@ -440,36 +440,12 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 
 		if useArrayOperators || hasArraysWithMaps || hasPruneOps {
 			// Process through merger for validation and/or array operators
-			mergerInstance := &merger.Merger{
-				AppendByDefault: m.fallbackAppend,
-			}
-
-			// Set memory tracker if available from the engine. Routed
-			// through GetMemoryTracker() (which returns a true nil, not an
-			// interface wrapping a nil *DocumentMemory) rather than a
-			// *DefaultEngine type assertion, so this matches the two other
-			// tracker-discovery sites in this file (prepareFirstDocument,
-			// performLegacyMerge) instead of duplicating the lookup.
+			var tracker interfaces.MemoryTracker
 			if m.engine != nil {
-				if tracker := m.engine.GetMemoryTracker(); tracker != nil && tracker.IsEnabled() {
-					mergerInstance.SetMemoryTracker(tracker)
-				}
+				tracker = m.engine.GetMemoryTracker()
 			}
-
-			// Create an empty base and merge our document into it
-			// This triggers the array validation logic
-			base := make(map[string]interface{})
-			err := mergerInstance.Merge(base, data)
+			base, err := mergeLoneDocument(data, m.fallbackAppend, tracker)
 			if err != nil {
-				// Convert merger.MultiError to graft.MultiError for consistent error formatting
-				var mergerMultiErr merger.MultiError
-				if errors.As(err, &mergerMultiErr) {
-					graftMultiErr := &MultiError{}
-					for _, e := range mergerMultiErr.Errors {
-						graftMultiErr.Append(e)
-					}
-					return nil, graftMultiErr
-				}
 				return nil, err
 			}
 
@@ -991,6 +967,40 @@ func (m *mergeBuilderImpl) recordPriorCalcValue(path []string, value interface{}
 		m.priorCalcValues = make(map[string]interface{})
 	}
 	m.priorCalcValues[strings.Join(path, ".")] = value
+}
+
+// mergeLoneDocument merges data onto an empty map with the merger, the
+// step a merge of one document takes, which resolves its array markers,
+// drops its (( prune )) list entries, and checks its lists. tracker,
+// when it is enabled, records what the merger changes.
+func mergeLoneDocument(data map[string]interface{}, appendByDefault bool, tracker interfaces.MemoryTracker) (map[string]interface{}, error) {
+	mergerInstance := &merger.Merger{AppendByDefault: appendByDefault}
+	if tracker != nil && tracker.IsEnabled() {
+		mergerInstance.SetMemoryTracker(tracker)
+	}
+	base := make(map[string]interface{})
+	if err := mergerInstance.Merge(base, data); err != nil {
+		// Convert merger.MultiError to graft.MultiError for consistent
+		// error formatting.
+		var mergerMultiErr merger.MultiError
+		if errors.As(err, &mergerMultiErr) {
+			graftMultiErr := &MultiError{}
+			for _, e := range mergerMultiErr.Errors {
+				graftMultiErr.Append(e)
+			}
+			return nil, graftMultiErr
+		}
+		return nil, err
+	}
+	return base, nil
+}
+
+// holdsListWork reports whether a merge of data alone would run it
+// through the merger for its lists, because a list holds an array
+// marker or a map. A (( prune )) entry alone does not count here.
+func holdsListWork(data map[string]interface{}) bool {
+	var m mergeBuilderImpl
+	return m.hasArrayOperators(data) || m.hasArraysWithMaps(data)
 }
 
 // hasArrayOperators checks if a map contains arrays with merge operators.

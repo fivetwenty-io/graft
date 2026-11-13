@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"sort"
 	"strings"
@@ -616,11 +617,14 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 		return nil, fmt.Errorf("document data is not a map")
 	}
 
-	// A merge removes the (( prune )) entries from each list before any
-	// operator reads it. A document evaluated with no merge loses them
-	// here, so both paths give the same result.
+	// A merge of one document runs it through the merger before any
+	// operator reads it, which resolves its array markers and drops its
+	// (( prune )) list entries. A document evaluated with no merge gets
+	// the same treatment here, so both paths give the same result.
 	if !fromMerge(ctx) {
-		dropPruneEntries(data)
+		if err := e.prepareLists(data); err != nil {
+			return nil, err
+		}
 	}
 
 	// Create evaluator
@@ -662,6 +666,27 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 
 	// Return evaluated document
 	return NewDocument(ev.Tree), nil
+}
+
+// prepareLists gives data, a document no merge has handled, what a
+// merge of it alone does to its lists. A document whose lists hold an
+// array marker or a map goes through the merger, as in a merge, and the
+// result takes data's place in data itself. The merger's errors come
+// back as a merge returns them. Any other document only loses its
+// (( prune )) list entries, which is all the merger would do to it, and
+// so does a document that holds itself, which the merger can't walk.
+func (e *DefaultEngine) prepareLists(data map[string]interface{}) error {
+	if detectCyclicValue(data) != nil || !holdsListWork(data) {
+		dropPruneEntries(data)
+		return nil
+	}
+	merged, err := mergeLoneDocument(data, false, e.GetMemoryTracker())
+	if err != nil {
+		return err
+	}
+	clear(data)
+	maps.Copy(data, merged)
+	return nil
 }
 
 // Diff computes the differences between a and b using

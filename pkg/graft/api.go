@@ -172,9 +172,12 @@ type Engine interface {
 	MergeFiles(ctx context.Context, paths ...string) MergeBuilder
 	MergeReaders(ctx context.Context, readers ...io.Reader) MergeBuilder
 
-	// Evaluate processes operators in a document. It first removes
-	// each (( prune )) entry from doc's lists, as a merge does, so an
-	// index into a list counts only the entries that stay. It resolves
+	// Evaluate processes operators in a document. It first does to
+	// doc's lists what a merge of doc alone does, so it resolves each
+	// array marker, such as (( append )), and removes each (( prune ))
+	// entry, and an index into a list counts only the entries that
+	// stay. It returns the merger's error for a marker a merge refuses.
+	// It resolves
 	// the operators in doc itself, and removes the keys they prune from
 	// doc itself, so doc must not be used by another call while
 	// Evaluate runs, and holds the evaluated result once it returns. A
