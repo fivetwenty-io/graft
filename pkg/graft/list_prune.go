@@ -48,7 +48,7 @@ func fromMerge(ctx context.Context) bool {
 func dropPruneEntries(data map[string]interface{}) {
 	w := pruneEntryWalk{
 		maps:  map[uintptr]bool{},
-		lists: map[uintptr][]interface{}{},
+		lists: map[listSpan][]interface{}{},
 	}
 	w.value(data)
 }
@@ -57,7 +57,15 @@ func dropPruneEntries(data map[string]interface{}) {
 // already walked, and lists holds what each list already walked became.
 type pruneEntryWalk struct {
 	maps  map[uintptr]bool
-	lists map[uintptr][]interface{}
+	lists map[listSpan][]interface{}
+}
+
+// listSpan names a list by the address of its first entry and its
+// length, since two lists cut from one slice can start at the same
+// entry and end at different ones.
+type listSpan struct {
+	p uintptr
+	n int
 }
 
 // value returns v with the (( prune )) entries gone from its lists, and
@@ -84,7 +92,7 @@ func (w *pruneEntryWalk) value(v interface{}) (interface{}, bool) {
 		if len(t) == 0 {
 			return v, false
 		}
-		p := reflect.ValueOf(t).Pointer()
+		p := listSpan{p: reflect.ValueOf(t).Pointer(), n: len(t)}
 		if out, ok := w.lists[p]; ok {
 			return out, len(out) != len(t)
 		}
