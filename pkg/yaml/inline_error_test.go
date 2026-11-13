@@ -163,37 +163,62 @@ type ringBetween struct {
 	First  inlineRest `yaml:"first"`
 }
 
-func TestInlineMapErrorSurvivesAPanickingMethod(t *testing.T) {
+// ringSource gives a ringBetween document with a bad value in first and
+// in second, and pad good pairs in second ahead of its bad value.
+func ringSource(pad int) []byte {
 	var b strings.Builder
 	b.WriteString("first:\n  a: 1\n  b: x\nkeys:\n")
 	for i, name := range strings.Split("abcdefgh", "") {
 		b.WriteString("  " + name + ": " + string(rune('1'+i)) + "\n")
 	}
-	// Good pairs after the ring let the search narrow to the first bad
-	// value before it cuts the ring short.
 	b.WriteString("second:\n  a: 1\n")
-	for i := range 20 {
+	for i := range pad {
 		b.WriteString("  f" + string(rune('a'+i)) + ": 1\n")
 	}
 	b.WriteString("  b: y\n")
-	src := []byte(b.String())
-	keyRingPanics.Store(0)
-	var want string
-	for i := 0; i < 200; i++ {
-		var v ringBetween
-		err := yaml.Unmarshal(src, &v)
-		var de *yaml.DecodeError
-		if !errors.As(err, &de) || de.Kind != yaml.ErrorKindType || de.Line != 3 {
-			t.Fatalf("run %d: %v, want a type error at line 3", i, err)
-		}
-		if i == 0 {
-			want = err.Error()
-		} else if err.Error() != want {
-			t.Fatalf("run %d: %q, run 0: %q", i, err.Error(), want)
-		}
+	return []byte(b.String())
+}
+
+func TestInlineMapErrorSurvivesAPanickingMethod(t *testing.T) {
+	cases := []struct {
+		name string
+		pad  int
+		line int
+	}{
+		// Good pairs after the ring let the search narrow to the first
+		// bad value before it cuts the ring short.
+		{name: "padded", pad: 20, line: 3},
+		// Without them the first probe cuts the ring short, and the
+		// search keeps the error of the longest prefix. That names
+		// second's bad value, and the answer is the same every run only
+		// because each inline map holds a single bad value.
+		{name: "unpadded", pad: 0, line: 15},
 	}
-	if keyRingPanics.Load() == 0 {
-		t.Fatal("the search never handed keyRing a mapping without all its keys")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			src := ringSource(tc.pad)
+			keyRingPanics.Store(0)
+			var want string
+			for i := 0; i < 200; i++ {
+				var v ringBetween
+				err := yaml.Unmarshal(src, &v)
+				var de *yaml.DecodeError
+				if !errors.As(err, &de) || de.Kind != yaml.ErrorKindType ||
+					de.Line != tc.line {
+					t.Fatalf("run %d: %v, want a type error at line %d",
+						i, err, tc.line)
+				}
+				if i == 0 {
+					want = err.Error()
+				} else if err.Error() != want {
+					t.Fatalf("run %d: %q, run 0: %q", i, err.Error(), want)
+				}
+			}
+			if keyRingPanics.Load() == 0 {
+				t.Fatal("the search never handed keyRing a mapping " +
+					"without all its keys")
+			}
+		})
 	}
 }
 
