@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.48.1] - 2026-11-15
+
+This patch release fixes one silent wrong result in merge output. A map key that is the literal string `"<<"` used to lose its quotes, so feeding graft's output back into graft turned it into a merge key. Nothing else changes, but the fix makes graft's output bytes differ from spruce's for that one key.
+
 ### Fixed
 
 - A literal `"<<"` key now keeps its quotes on output, so a second read no longer treats it as a merge key. Before, graft wrote the key bare, and reading that output back either merged the value into its parent map or failed with "map merge requires map or sequence of maps". spruce writes this key bare, so this is a deliberate difference in output bytes.
@@ -1462,6 +1466,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.48.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.48.1
 [1.48.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.48.0
 [1.47.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.47.0
 [1.46.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.46.0
