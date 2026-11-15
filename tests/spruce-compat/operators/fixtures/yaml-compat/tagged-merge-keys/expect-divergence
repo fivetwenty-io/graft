@@ -1,0 +1,1 @@
+spruce writes the literal key from `!!str <<:` back out bare, as `<<: kept`, so the next read of its output takes that key for a merge key and fails, because a merge needs a map or a list of maps. graft writes the same key as `"<<": kept`. Both tools agree on what the input means, and the quoted key keeps that meaning when the output is read again.
