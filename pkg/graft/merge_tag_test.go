@@ -29,7 +29,7 @@ func TestEngineReadsTaggedMergeKeys(t *testing.T) {
 func TestTaggedMergeKeysBothModes(t *testing.T) {
 	const base = "base: &b {a: 1}\nm:\n  ? !!merge <<\n  : *b\n  c: 2\ns:\n  !!str <<: kept\n"
 	const overlay = "o:\n  !!merge <<: *b\nr: (( grab m.a ))\n"
-	const want = "base:\n  a: 1\nm:\n  a: 1\n  c: 2\no:\n  a: 1\nr: 1\ns:\n  <<: kept\n"
+	const want = "base:\n  a: 1\nm:\n  a: 1\n  c: 2\no:\n  a: 1\nr: 1\ns:\n  \"<<\": kept\n"
 	var results []string
 	for _, parallel := range []bool{true, false} {
 		engine := newModeEngine(t, parallel)

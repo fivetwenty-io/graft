@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A literal `"<<"` key now keeps its quotes on output, so a second read no longer treats it as a merge key. Before, graft wrote the key bare, and reading that output back either merged the value into its parent map or failed with "map merge requires map or sequence of maps". spruce writes this key bare, so this is a deliberate difference in output bytes.
+
 ## [1.48.0] - 2026-11-13
 
 This release adds two things to `pkg/yaml` that a program needs in order to edit and compare YAML files without importing goccy. It adds `yaml.Document`, which changes a value in a file and leaves every other byte alone, and `yaml.Diff`, which compares two inputs the way `graft diff` does. It also adds Context variants of eight `Engine` methods, so a caller can cancel a parse, a comparison, or an output step. The release closes several defects in the decoder and the evaluator as well, and some of those change output or turn a silent wrong result into an error, so please read the Changed and Fixed sections before you upgrade.

@@ -513,6 +513,12 @@ func (e *scalarEncoder) prepareKey(k string, m int, value interface{}) (interfac
 		return k, e.layout.mapValuePosition(m, len(k)), true
 	}
 	style := timestampStyle(k, e.quoteTimestamps, true)
+	if k == "<<" {
+		// Genuine merge keys are resolved on read, so a "<<" key that
+		// reaches the encoder is a string. Bare, the next read would
+		// take it for a merge key, so it keeps its quotes.
+		style = doubleQuotedScalarStyle
+	}
 	text, simple := renderSimpleKeyAs(k, style, m, e.layout.indent())
 	if !simple && e.quoteTimestamps && fitsQuotedKey(k) {
 		// goccy's parser misreads some explicit "? key" forms, such as a

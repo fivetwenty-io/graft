@@ -32,7 +32,9 @@ var spruceScalarStyleCases = []struct {
 	{"a- b", "k: a- b\n", "a- b: 1\n"},
 	{"q --- s", "k: q --- s\n", "q --- s: 1\n"},
 	{"uaa.((system_domain))", "k: uaa.((system_domain))\n", "uaa.((system_domain)): 1\n"},
-	{"<<", "k: <<\n", "<<: 1\n"},
+	// A "<<" key keeps its quotes, where spruce writes it bare, so the
+	// next read does not take it for a merge key.
+	{"<<", "k: <<\n", "\"<<\": 1\n"},
 	{"2001-01-01", "k: 2001-01-01\n", "2001-01-01: 1\n"},
 	// tab-escaped
 	{"\t", "k: \"\\t\"\n", "\"\\t\": 1\n"},
