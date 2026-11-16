@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A `(( vault ))` read through the `WithVault` or `WithVaultTarget` backend now works against a KV v2 mount. Before, the backend sent the logical path to Vault as it was written and never added the mount's `data/` segment, so every read from a KV v2 mount failed with "secret not found". This bug dates from v1.31.0, when `WithVault` was added. The backend now asks `sys/internal/ui/mounts/<path>` which mount serves a secret and which KV version it speaks, the same way the environment-configured reader always has, and both readers now share one implementation so they can't drift apart again. Each target keeps its own mount cache, so two Vaults with the same mount name on different KV versions don't answer for each other. A path that already spells out `data/` is left alone, and graft never reads `sys/mounts`, which a token scoped to its own secret paths usually can't.
+
+- When graft can't look up a mount's KV version, such as when the token's policy denies the lookup, it still reads the secret as KV v1, as before. If that read then finds nothing, the error now says so. The vault operator reports `secret <path>:<key> (mount "<mount>": KV version undetected, read as KV v1) not found`, which still starts with `secret ` and ends with ` not found` for Genesis. A library caller that calls the backend's `Get` directly sees the same explanation in front of the usual not-found error, and `errors.Is` with `graft.ErrBackendNotFound` still matches it.
+
 ## [1.49.0] - 2026-11-16
 
 This release lets graft trust a Vault server whose certificate comes from a private CA. You can give the CA to the library through `VaultConfig`, or to the CLI through the same `VAULT_CACERT` and `VAULT_CAPATH` variables the Vault CLI reads. Merge output is unchanged.

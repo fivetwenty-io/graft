@@ -87,7 +87,9 @@ func TestVaultBackendErrorTextHoldsNoPath(t *testing.T) {
 
 // TestVaultBackendGetErrorTextHoldsNoPath calls the WithVault backend
 // directly, the way a library caller does, and checks that a missing
-// secret still reports ErrBackendNotFound.
+// secret still reports ErrBackendNotFound. probeVault answers the mounts
+// lookup with a 404, so the missing secret's text says it was read as KV
+// v1 because its mount's KV version was undetected.
 func TestVaultBackendGetErrorTextHoldsNoPath(t *testing.T) {
 	srv := probeVault(t)
 	eng, err := graft.NewEngine(
@@ -102,7 +104,7 @@ func TestVaultBackendGetErrorTextHoldsNoPath(t *testing.T) {
 		t.Fatal("no vault backend")
 	}
 	details := map[string]string{
-		"secret/missing:PROBEzq81x": "backend: path not found: secret/missing:PROBEzq81x",
+		"secret/missing:PROBEzq81x": `mount "secret/": KV version undetected, read as KV v1: backend: path not found: secret/missing:PROBEzq81x`,
 		"secret/num:PROBEzq81x":     `vault: value at "secret/num:PROBEzq81x" is not a string (got json.Number)`,
 		"PROBEzq81x":                `vault: invalid path "PROBEzq81x": must be in the form path/to/secret:key`,
 		"secret/PROBEzq81x:k":       `vault: reading "secret/PROBEzq81x": Error making API request.`,

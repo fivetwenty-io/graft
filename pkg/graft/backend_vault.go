@@ -16,6 +16,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/vaultca"
+	"github.com/fivetwenty-io/graft/internal/vaultkv"
 )
 
 // ErrVaultCA is the sentinel that every Vault CA trust failure matches
@@ -88,30 +89,37 @@ type VaultConfig struct {
 }
 
 // vaultOptionBackend is the graft.Backend registered under the name
-// "vault" by WithVault/WithVaultTarget. It is a from-scratch, minimal
-// Vault KV reader built directly on github.com/hashicorp/vault/api rather
-// than internal/backends/vault: internal/backends/vault imports pkg/graft
+// "vault" by WithVault/WithVaultTarget. It is a minimal Vault KV reader
+// built on github.com/hashicorp/vault/api rather than
+// internal/backends/vault: internal/backends/vault imports pkg/graft
 // (for graft.Engine, graft.DEBUG), so pkg/graft cannot import it back
 // without an import cycle (see RegisterBackend's "Design note" in
-// backend.go). Concretely this means vaultOptionBackend does not share
-// internal/backends/vault's process-global client pool, its SecretCache,
-// or its .svtoken-file fallback; it builds one hashicorp/vault/api.Client
-// per configured target (WithVault's "" target, plus one per
-// WithVaultTarget name), lazily, on first use, and reuses it afterward.
+// backend.go). Both read through internal/vaultkv, which owns the KV
+// mount detection, the per-mount version cache, the KV v2 data/ path
+// rewrite, and the response unwrapping, so the two agree on every mount.
+// vaultOptionBackend does not share internal/backends/vault's
+// process-global client pool, its SecretCache, or its .svtoken-file
+// fallback; it builds one hashicorp/vault/api.Client, wrapped in its own
+// vaultkv.Reader and so its own mount cache, per configured target
+// (WithVault's "" target, plus one per WithVaultTarget name), lazily, on
+// first use, and reuses it afterward.
 // Retry and caching behavior beyond the vault SDK's own built-in 5xx retry
 // (2 retries by default) are available by layering WithBackendRetry("vault",
 // ...) and WithBackendCache("vault", ...) on top - vaultOptionBackend
 // itself does neither, by design, so the two concerns are not duplicated.
 type vaultOptionBackend struct {
-	mu      sync.RWMutex
-	configs map[string]VaultConfig      // "" is the WithVault default; other keys are WithVaultTarget names.
-	clients map[string]*vaultapi.Client // lazily built, same keys as configs.
+	mu sync.RWMutex
+	// configs is keyed by target: "" is the WithVault default, and any
+	// other key is a WithVaultTarget name.
+	configs map[string]VaultConfig
+	// readers is built lazily, with the same keys as configs.
+	readers map[string]*vaultkv.Reader
 }
 
 func newVaultOptionBackend() *vaultOptionBackend {
 	return &vaultOptionBackend{
 		configs: make(map[string]VaultConfig),
-		clients: make(map[string]*vaultapi.Client),
+		readers: make(map[string]*vaultkv.Reader),
 	}
 }
 
@@ -133,8 +141,12 @@ func (b *vaultOptionBackend) GetWithTarget(ctx context.Context, target, path str
 	return b.get(ctx, target, path)
 }
 
+// get reads path, "path/to/secret:key", through target's reader, which
+// handles KV v1 and KV v2 mounts the same way the environment-configured
+// reader does. A missing secret on a mount whose KV version could not be
+// detected reports ErrBackendNotFound inside a *vaultkv.UndetectedError.
 func (b *vaultOptionBackend) get(ctx context.Context, target, path string) (interface{}, error) {
-	client, err := b.clientFor(target)
+	reader, err := b.readerFor(target)
 	if err != nil {
 		return nil, err
 	}
@@ -145,26 +157,15 @@ func (b *vaultOptionBackend) get(ctx context.Context, target, path string) (inte
 	}
 
 	DEBUG("vault backend: reading `%s' (target=%q)", secretPath, target)
-	secret, err := client.Logical().ReadWithContext(ctx, secretPath)
+	res, err := reader.Read(ctx, secretPath)
 	if err != nil {
 		return nil, errtext.WithPlain(fmt.Errorf("vault: reading %q: %w", secretPath, err), "vault: reading the secret failed")
 	}
-	if secret == nil || secret.Data == nil {
-		return nil, backendNotFound(path)
+	if res.Data == nil {
+		return nil, res.NotFound(backendNotFound(path))
 	}
 
-	// KV v2 responses nest the secret under "data" alongside a sibling
-	// "metadata" key; KV v1 responses are the secret map directly. Mirrors
-	// internal/backends/vault/reader.go's detection exactly, so a
-	// vaultOptionBackend and the built-in reader agree on the same mount.
-	data := secret.Data
-	if inner, ok := secret.Data["data"].(map[string]interface{}); ok {
-		if _, hasMetadata := secret.Data["metadata"]; hasMetadata {
-			data = inner
-		}
-	}
-
-	v, ok := data[subkey]
+	v, ok := res.Data[subkey]
 	if !ok {
 		return nil, backendNotFound(path)
 	}
@@ -187,11 +188,11 @@ func (b *vaultOptionBackend) GetBatch(ctx context.Context, paths []string) (map[
 // returns an error saying so rather than silently checking an arbitrary
 // target.
 func (b *vaultOptionBackend) Health(ctx context.Context) error {
-	client, err := b.clientFor("")
+	reader, err := b.readerFor("")
 	if err != nil {
 		return err
 	}
-	_, err = client.Sys().HealthWithContext(ctx)
+	_, err = reader.Client().Sys().HealthWithContext(ctx)
 	return err
 }
 
@@ -202,8 +203,9 @@ func (b *vaultOptionBackend) Health(ctx context.Context) error {
 func (b *vaultOptionBackend) Close() error { return nil }
 
 // setConfig stores cfg under target ("" for WithVault's default) and
-// drops any already-built client for that target so the next Get/
-// GetWithTarget call rebuilds one from the new configuration - this makes
+// drops any already-built reader for that target, with its client and
+// mount cache, so the next Get/GetWithTarget call rebuilds one from the
+// new configuration - this makes
 // a second WithVault/WithVaultTarget call for the same target (last
 // registered wins, matching every other With* option in this package)
 // take effect even if a client was already built and used.
@@ -211,12 +213,13 @@ func (b *vaultOptionBackend) setConfig(target string, cfg VaultConfig) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.configs[target] = cfg
-	delete(b.clients, target)
+	delete(b.readers, target)
 }
 
-func (b *vaultOptionBackend) clientFor(target string) (*vaultapi.Client, error) {
+// readerFor returns target's reader, building its client on first use.
+func (b *vaultOptionBackend) readerFor(target string) (*vaultkv.Reader, error) {
 	b.mu.RLock()
-	if c, ok := b.clients[target]; ok {
+	if c, ok := b.readers[target]; ok {
 		b.mu.RUnlock()
 		return c, nil
 	}
@@ -235,18 +238,21 @@ func (b *vaultOptionBackend) clientFor(target string) (*vaultapi.Client, error) 
 		return nil, err
 	}
 
+	reader := vaultkv.New(client, DEBUG)
+
 	b.mu.Lock()
-	// Re-check: a concurrent caller may have built (and stored) a client
+	// Re-check: a concurrent caller may have built (and stored) a reader
 	// for the same target while this one was under construction; keep
-	// whichever was stored first so all callers converge on one client.
-	if existing, ok := b.clients[target]; ok {
+	// whichever was stored first so all callers converge on one reader,
+	// and so on one mount cache.
+	if existing, ok := b.readers[target]; ok {
 		b.mu.Unlock()
 		return existing, nil
 	}
-	b.clients[target] = client
+	b.readers[target] = reader
 	b.mu.Unlock()
 
-	return client, nil
+	return reader, nil
 }
 
 // buildVaultClient constructs a hashicorp/vault/api.Client from cfg.
