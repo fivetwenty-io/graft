@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.49.1] - 2026-11-16
+
+This patch release fixes `(( vault ))` reads through the `WithVault` and `WithVaultTarget` backends against KV v2 mounts, which have failed with "secret not found" since v1.31.0. Merge output is unchanged, and the CLI's environment-configured reader behaves as before.
+
 ### Fixed
 
 - A `(( vault ))` read through the `WithVault` or `WithVaultTarget` backend now works against a KV v2 mount. Before, the backend sent the logical path to Vault as it was written and never added the mount's `data/` segment, so every read from a KV v2 mount failed with "secret not found". This bug dates from v1.31.0, when `WithVault` was added. The backend now asks `sys/internal/ui/mounts/<path>` which mount serves a secret and which KV version it speaks, the same way the environment-configured reader always has, and both readers now share one implementation so they can't drift apart again. Each target keeps its own mount cache, so two Vaults with the same mount name on different KV versions don't answer for each other. A path that already spells out `data/` is left alone, and graft never reads `sys/mounts`, which a token scoped to its own secret paths usually can't.
@@ -1484,6 +1488,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.49.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.49.1
 [1.49.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.49.0
 [1.48.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.48.1
 [1.48.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.48.0
