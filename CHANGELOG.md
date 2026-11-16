@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.49.0] - 2026-11-16
+
+This release lets graft trust a Vault server whose certificate comes from a private CA. You can give the CA to the library through `VaultConfig`, or to the CLI through the same `VAULT_CACERT` and `VAULT_CAPATH` variables the Vault CLI reads. Merge output is unchanged.
+
 ### Added
 
 - `VaultConfig` has three new fields for a Vault whose certificate comes from a private CA. `CACert` is the path of a PEM file and `CAPath` is a directory of PEM files that graft walks recursively, and both are expanded with `os.ExpandEnv` like `Address`. `CACertBytes` holds the PEM content itself. The certificates from the first one set, in the order `CACert`, `CACertBytes`, `CAPath`, replace the system roots, so graft trusts only them. When none is set, graft keeps using the system roots as before, and `SkipVerify` still wins when it is set along with a CA.
@@ -1474,6 +1478,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.49.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.49.0
 [1.48.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.48.1
 [1.48.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.48.0
 [1.47.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.47.0
