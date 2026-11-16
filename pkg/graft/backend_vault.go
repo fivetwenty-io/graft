@@ -15,7 +15,21 @@ import (
 	vaultapi "github.com/hashicorp/vault/api"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
+	"github.com/fivetwenty-io/graft/internal/vaultca"
 )
+
+// ErrVaultCA is the sentinel that every Vault CA trust failure matches
+// with errors.Is: an unreadable VaultConfig.CACert or CAPath, PEM with no
+// parseable certificate, or a CAPath directory holding no certificate
+// files. The environment-configured vault reader returns the same
+// sentinel for VAULT_CACERT, VAULT_CAPATH, and their per-target forms.
+var ErrVaultCA = vaultca.ErrCA
+
+// VaultCAError is the concrete type behind every ErrVaultCA failure,
+// reachable with errors.As. Its Field names the setting or environment
+// variable and its Path names the file or directory; its message never
+// includes certificate content.
+type VaultCAError = vaultca.CAError
 
 // VaultConfig carries per-engine Vault connection configuration for
 // WithVault and WithVaultTarget. Every field is optional except Address and
@@ -39,8 +53,30 @@ type VaultConfig struct {
 	// Expanded with os.ExpandEnv, same as Address.
 	Namespace string
 	// SkipVerify disables TLS certificate verification. Only meaningful
-	// when Address uses "https://"; ignored otherwise.
+	// when Address uses "https://"; ignored otherwise. It wins over the
+	// CA fields below, as it does in Vault, though a CA field that is set
+	// must still load.
 	SkipVerify bool
+	// CACert is the path of a PEM file holding the CA certificates that
+	// sign the Vault server's certificate, like Vault's VAULT_CACERT.
+	// Expanded with os.ExpandEnv, same as Address.
+	//
+	// Setting any of CACert, CACertBytes, or CAPath makes the client
+	// trust only that source's certificates, in place of the system
+	// roots. The first one set, in the order CACert, CACertBytes, CAPath,
+	// is used and the others are ignored. When none is set the system
+	// roots are trusted. A source that cannot be read or holds no
+	// certificate fails the client build with an error matching
+	// ErrVaultCA; it never falls back to the system roots.
+	CACert string
+	// CACertBytes holds PEM-encoded CA certificates, for callers that
+	// have them in memory. See CACert for precedence and failure.
+	CACertBytes []byte
+	// CAPath is a directory of PEM files, walked recursively, every
+	// regular file of which must hold at least one CA certificate, like
+	// Vault's VAULT_CAPATH. Expanded with os.ExpandEnv, same as Address.
+	// See CACert for precedence and failure.
+	CAPath string
 	// Timeout bounds each Vault request. Non-positive leaves the
 	// hashicorp/vault/api client's own default (60s) in effect.
 	Timeout time.Duration
@@ -232,9 +268,23 @@ func buildVaultClient(cfg VaultConfig) (*vaultapi.Client, error) {
 		return nil, fmt.Errorf("vault: could not parse VaultConfig.Address %q: %w", addr, err)
 	}
 
-	roots, err := x509.SystemCertPool()
+	roots, err := vaultca.Load(vaultca.Source{
+		CACert:           os.ExpandEnv(cfg.CACert),
+		CACertBytes:      cfg.CACertBytes,
+		CAPath:           os.ExpandEnv(cfg.CAPath),
+		CACertField:      "VaultConfig.CACert",
+		CACertBytesField: "VaultConfig.CACertBytes",
+		CAPathField:      "VaultConfig.CAPath",
+	})
 	if err != nil {
-		return nil, fmt.Errorf("vault: unable to retrieve system root certificate authorities: %w", err)
+		return nil, err
+	}
+
+	if roots == nil {
+		roots, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("vault: unable to retrieve system root certificate authorities: %w", err)
+		}
 	}
 
 	httpClient := &http.Client{

@@ -201,10 +201,13 @@ type Target struct {
     Token      string `yaml:"token"`
     Namespace  string `yaml:"namespace"`
     SkipVerify bool   `yaml:"skip_verify"`
+    CACert     string `yaml:"ca_cert"`
+    CAPath     string `yaml:"ca_path"`
+    // unexported names for error messages omitted
 }
 ```
 
-Separately, `pkg/graft.VaultConfig` (`backend_vault.go:26-51`) is a different, real, public type — but it belongs to the custom backend registry's `WithVault`/`WithVaultTarget` engine options (see [Custom Backend Registry](#custom-backend-registry-extension-point) above and [Backend Configuration Options](../developer-guide/library-api/options.md#backend-configuration-options)), not to this always-on path. Its fields are `Address, Token, Namespace, SkipVerify, Timeout, PoolSize` — `Token`/`Namespace`/`SkipVerify` match `Target`'s names, `Address` is `Target.URL` under a different name, and `Timeout`/`PoolSize` have no `Target` equivalent at all. It is read only when a `WithVault` call registers a backend under `"vault"` with the registry feature flag on; this section's environment variables and `vault.Target` govern every other case.
+Separately, `pkg/graft.VaultConfig` (`backend_vault.go:42-88`) is a different, real, public type — but it belongs to the custom backend registry's `WithVault`/`WithVaultTarget` engine options (see [Custom Backend Registry](#custom-backend-registry-extension-point) above and [Backend Configuration Options](../developer-guide/library-api/options.md#backend-configuration-options)), not to this always-on path. Its fields are `Address, Token, Namespace, SkipVerify, CACert, CACertBytes, CAPath, Timeout, PoolSize` — `Token`/`Namespace`/`SkipVerify`/`CACert`/`CAPath` match `Target`'s names, `Address` is `Target.URL` under a different name, and `CACertBytes`/`Timeout`/`PoolSize` have no `Target` equivalent at all. It is read only when a `WithVault` call registers a backend under `"vault"` with the registry feature flag on; this section's environment variables and `vault.Target` govern every other case.
 
 Environment variables:
 
@@ -215,6 +218,12 @@ Environment variables:
 - `VAULT_NAMESPACE` - Enterprise namespace
 
 - `VAULT_SKIP_VERIFY` - Skip TLS verification
+
+- `VAULT_CACERT` - PEM file of CA certificates that replaces the system roots
+
+- `VAULT_CAPATH` - Directory of PEM CA files, walked recursively, used when `VAULT_CACERT` is unset
+
+Both client builders load the CA through `internal/vaultca`, which follows Vault's precedence of `CACert`, then `CACertBytes`, then `CAPath`, and returns a `*vaultca.CAError` matching `vaultca.ErrCA` on any failure. `pkg/graft` re-exports those as `VaultCAError` and `ErrVaultCA`.
 
 Per-target environment variables:
 
@@ -664,7 +673,7 @@ that need to establish their own TLS connections — graft's registry and
 operators never read it; it exists only so custom backends don't each
 invent an equivalent struct. The built-in Vault/AWS/NATS clients have their
 own, separate TLS configuration, already covered in their sections above
-(Vault's `VAULT_SKIP_VERIFY`, NATS's `CertFile`/`KeyFile`/`CAFile` on
+(Vault's `VAULT_SKIP_VERIFY`, `VAULT_CACERT`, and `VAULT_CAPATH`, NATS's `CertFile`/`KeyFile`/`CAFile` on
 `nats.Target`).
 
 ### Audit Logging

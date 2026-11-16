@@ -142,7 +142,8 @@ active: it keeps its existing redacting behavior regardless of whether
 | `VAULT_TOKEN` | Authentication token | - |
 | `VAULT_NAMESPACE` | Vault namespace | - |
 | `VAULT_SKIP_VERIFY` | Skip TLS verification | `false` |
-| `VAULT_CACERT` | CA certificate path | - |
+| `VAULT_CACERT` | PEM file of CA certificates to trust in place of the system roots | - |
+| `VAULT_CAPATH` | Directory of PEM CA files, searched recursively, used when `VAULT_CACERT` is unset | - |
 | `VAULT_CLIENT_CERT` | Client certificate path | - |
 | `VAULT_CLIENT_KEY` | Client key path | - |
 
@@ -164,6 +165,14 @@ export VAULT_STAGING_ADDR="https://vault-staging.example.com"
 export VAULT_STAGING_TOKEN="s.staging-token"
 ```
 
+A named target also reads `VAULT_<TARGET>_NAMESPACE`, `VAULT_<TARGET>_SKIP_VERIFY`, `VAULT_<TARGET>_CACERT`, and `VAULT_<TARGET>_CAPATH`.
+
+### Private Certificate Authorities
+
+When your Vault's certificate comes from a private CA, point `VAULT_CACERT` at a PEM file that holds the CA, or point `VAULT_CAPATH` at a directory of PEM files. graft walks that directory and its subdirectories, and every regular file in it must hold at least one certificate. In a program, set `CACert`, `CACertBytes`, or `CAPath` on the `VaultConfig` instead, because `WithVault` reads only its own fields and never these variables.
+
+The CA you configure replaces the system roots, so graft trusts only the certificates you gave it, just as the Vault CLI does with `VAULT_CACERT`. When more than one source is set, graft uses the first of `CACert`, `CACertBytes`, and `CAPath` and ignores the rest. A path that can't be read, a file with no PEM certificate in it, or a directory with no files at all stops the client from being built, and the error matches `graft.ErrVaultCA`. graft never falls back to the system roots or to unverified TLS when that happens, and the error names the path and the setting but never repeats what the file holds. `VAULT_SKIP_VERIFY` and `SkipVerify` still turn verification off when a CA is also set, which matches Vault.
+
 ### Library Configuration
 
 ```go
@@ -172,7 +181,7 @@ engine, _ := graft.NewEngine(
         Address:    "https://vault.example.com",
         Token:      os.Getenv("VAULT_TOKEN"),
         Namespace:  "prod",
-        SkipVerify: false,
+        CACert:     "/etc/vault/ca.pem",
     }),
     graft.WithVaultTarget("staging", graft.VaultConfig{
         Address: "https://vault-staging.example.com",

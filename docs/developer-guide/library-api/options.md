@@ -184,12 +184,15 @@ engine, _ := graft.NewEngine(graft.WithHistoryConfig(graft.HistoryConfig{
 
 ```go
 type VaultConfig struct {
-    Address    string
-    Token      string
-    Namespace  string
-    SkipVerify bool
-    Timeout    time.Duration
-    PoolSize   int
+    Address     string
+    Token       string
+    Namespace   string
+    SkipVerify  bool
+    CACert      string // PEM file of CA certificates
+    CACertBytes []byte // PEM-encoded CA certificates
+    CAPath      string // directory of PEM files, walked recursively
+    Timeout     time.Duration
+    PoolSize    int
 }
 func WithVault(config VaultConfig) Option
 func WithVaultTarget(name string, config VaultConfig) Option
@@ -211,6 +214,8 @@ engine, err := graft.NewEngine(
     graft.WithVaultTarget("staging", graft.VaultConfig{Address: "https://vault-staging.example.com", Token: "s.yyyy"}),
 )
 ```
+
+For a Vault whose certificate comes from a private CA, set `CACert`, `CACertBytes`, or `CAPath`. The certificates from the first one set, in that order, replace the system roots, and `WithVault` never reads `VAULT_CACERT` or `VAULT_CAPATH` for you. A CA that can't be loaded fails the first lookup with an error that matches `graft.ErrVaultCA`, and `errors.As` gives a `*graft.VaultCAError` whose `Field` and `Path` say which setting and file were wrong. `SkipVerify` still wins when it is set along with a CA.
 
 `(( vault "secret/db:password" ))` then reads through the `WithVault` configuration; `(( vault@staging "secret/db:password" ))` reads through the matching `WithVaultTarget("staging", ...)` configuration. A `@target` with no matching `WithVaultTarget`/`WithAWSTarget` call is a configuration error (distinct from a missing secret), not a silent fallback to the default target. Calling `WithVault`/`WithAWS` more than once, or combining either with `WithVaultTarget`/`WithAWSTarget` for the same target, applies to the same underlying backend: the last call for a given target wins, matching `WithBackend`'s own "last registration for a name wins" rule.
 

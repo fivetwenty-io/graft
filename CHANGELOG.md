@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `VaultConfig` has three new fields for a Vault whose certificate comes from a private CA. `CACert` is the path of a PEM file and `CAPath` is a directory of PEM files that graft walks recursively, and both are expanded with `os.ExpandEnv` like `Address`. `CACertBytes` holds the PEM content itself. The certificates from the first one set, in the order `CACert`, `CACertBytes`, `CAPath`, replace the system roots, so graft trusts only them. When none is set, graft keeps using the system roots as before, and `SkipVerify` still wins when it is set along with a CA.
+
+- The environment-configured Vault client now honors `VAULT_CACERT` and `VAULT_CAPATH` the way the Vault CLI does, and a named target honors `VAULT_<TARGET>_CACERT` and `VAULT_<TARGET>_CAPATH`. A variable that is set but empty counts as unset. If you already export `VAULT_CACERT` for the Vault CLI, graft now uses it too, where it used to ignore it. `WithVault` reads only its `VaultConfig` fields and never these variables.
+
+- A CA that can't be loaded now fails loudly when graft builds the Vault client, before any request goes out. That covers a path that can't be read, PEM with no certificate in it, and a `CAPath` directory with no files, and graft never falls back to the system roots or to unverified TLS. The error matches `graft.ErrVaultCA` with `errors.Is`, and `errors.As` gives a `*graft.VaultCAError` that names the setting and the path but never repeats what the file holds.
+
 ## [1.48.1] - 2026-11-15
 
 This patch release fixes one silent wrong result in merge output. A map key that is the literal string `"<<"` used to lose its quotes, so feeding graft's output back into graft turned it into a merge key. Nothing else changes, but the fix makes graft's output bytes differ from spruce's for that one key.

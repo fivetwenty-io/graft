@@ -28,14 +28,13 @@ above.
 | `VAULT_TOKEN` | Authentication token | - |
 | `VAULT_NAMESPACE` | Vault namespace | - |
 | `VAULT_SKIP_VERIFY` | Skip TLS verification | `false` |
+| `VAULT_CACERT` | PEM file of CA certificates to trust in place of the system roots | - |
+| `VAULT_CAPATH` | Directory of PEM CA files, searched recursively, used when `VAULT_CACERT` is unset | - |
 
 If `VAULT_ADDR` or `VAULT_TOKEN` is unset, graft falls back to
 `~/.svtoken`, then to a bare token read from `~/.vault-token`.
-`VAULT_CACERT`, `VAULT_CAPATH`, `VAULT_CLIENT_CERT`, `VAULT_CLIENT_KEY`,
-and `VAULT_TLS_SERVER_NAME` are not honored: graft builds its own
-`http.Client` with its own TLS configuration when constructing the Vault
-API client, which does not pick up the HashiCorp SDK's environment-driven
-TLS settings.
+
+`VAULT_CACERT` and `VAULT_CAPATH` work the way they do for the Vault CLI. The CA you name replaces the system roots, and a CA that can't be loaded stops graft before it sends any request. See [Private Certificate Authorities](secrets/vault.md#private-certificate-authorities) for the details. `VAULT_CLIENT_CERT`, `VAULT_CLIENT_KEY`, and `VAULT_TLS_SERVER_NAME` are not honored, because graft builds its own `http.Client` for the Vault API client and that client doesn't pick up the HashiCorp SDK's other TLS settings.
 
 **Per-target Vault:**
 
@@ -324,11 +323,7 @@ export NATS_KEY_FILE="/path/to/key.pem"
 export NATS_CA_FILE="/path/to/ca.pem"
 ```
 
-Graft has no working TLS-material environment variables for Vault
-(`VAULT_CACERT`/`VAULT_CLIENT_CERT`/`VAULT_CLIENT_KEY` are not honored;
-see [Vault Configuration](#vault-configuration) above). Use `VAULT_ADDR`
-with an `https://` URL and `VAULT_SKIP_VERIFY` for TLS verification
-control instead.
+For Vault, `VAULT_CACERT` and `VAULT_CAPATH` set the CA that graft trusts, and `VAULT_SKIP_VERIFY` turns verification off. Client certificates are not supported, so `VAULT_CLIENT_CERT` and `VAULT_CLIENT_KEY` are ignored. See [Vault Configuration](#vault-configuration) above.
 
 ### Secret Redaction
 

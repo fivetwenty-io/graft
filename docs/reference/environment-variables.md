@@ -113,20 +113,17 @@ this section participates in.
 | `VAULT_TOKEN` | | Authentication token (required, unless a fallback applies) |
 | `VAULT_NAMESPACE` | | Vault namespace (enterprise) |
 | `VAULT_SKIP_VERIFY` | `false` | Skip TLS certificate verification |
+| `VAULT_CACERT` | | PEM file of CA certificates to trust in place of the system roots |
+| `VAULT_CAPATH` | | Directory of PEM CA files, searched recursively, used when `VAULT_CACERT` is unset |
 
 If `VAULT_ADDR` or `VAULT_TOKEN` is unset, graft reads `~/.svtoken` (a
 YAML file with `vault`, `token`, `namespace`, and `skip_verify` keys) as a
 fallback for all four. If a token is still unset after that, graft reads
 a bare token from `~/.vault-token`.
 
-`VAULT_CACERT`, `VAULT_CAPATH`, `VAULT_CLIENT_CERT`, `VAULT_CLIENT_KEY`,
-`VAULT_TLS_SERVER_NAME`, and `VAULT_RATE_LIMIT` are **not honored** by
-graft, despite being variables the underlying `hashicorp/vault/api` SDK
-recognizes: graft builds its own `http.Client` with its own TLS
-configuration and passes it to `api.NewClient`, which only falls back to
-the SDK's environment-derived HTTP client when the caller doesn't supply
-one — and graft always does. Use `VAULT_ADDR` with an `https://` URL and
-`VAULT_SKIP_VERIFY` for TLS control instead.
+`VAULT_CACERT` and `VAULT_CAPATH` behave as they do for the Vault CLI. The CA they name replaces the system roots rather than adding to them, `VAULT_CACERT` wins when both are set, and a variable that is set but empty counts as unset. A CA that can't be read, or that holds no PEM certificate, stops graft before it sends a request, and the error never repeats the file's contents. `VAULT_SKIP_VERIFY` still turns verification off when a CA is also set.
+
+`VAULT_CLIENT_CERT`, `VAULT_CLIENT_KEY`, `VAULT_TLS_SERVER_NAME`, and `VAULT_RATE_LIMIT` are **not honored** by graft, even though the underlying `hashicorp/vault/api` SDK recognizes them. graft builds its own `http.Client` and passes it to `api.NewClient`, and the SDK only applies its environment-derived settings to the HTTP client it builds when the caller doesn't supply one.
 
 ### Named Targets
 
@@ -138,6 +135,8 @@ For multi-target configurations, use `VAULT_{TARGET}_*` format:
 | `VAULT_{TARGET}_TOKEN` | Target-specific token |
 | `VAULT_{TARGET}_NAMESPACE` | Target-specific namespace |
 | `VAULT_{TARGET}_SKIP_VERIFY` | Target-specific TLS skip |
+| `VAULT_{TARGET}_CACERT` | Target-specific CA file, as `VAULT_CACERT` |
+| `VAULT_{TARGET}_CAPATH` | Target-specific CA directory, as `VAULT_CAPATH` |
 
 **Example:**
 
