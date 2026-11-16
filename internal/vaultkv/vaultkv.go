@@ -173,7 +173,7 @@ func (r *Reader) mountFor(ctx context.Context, logical string) (string, mount) {
 // detection existed. keep reports whether the answer may be cached: a
 // lookup Vault answered, or refused with a 4xx, is kept, so a denied
 // lookup costs one request per mount. A transport error, a 5xx, or a
-// cancelled context is not kept, so a long-lived reader looks the mount
+// canceled context is not kept, so a long-lived reader looks the mount
 // up again instead of reading a KV v2 mount as KV v1 for good.
 func (r *Reader) lookup(ctx context.Context, logical string) (string, mount, bool) {
 	fallback := logical + "/"
