@@ -146,6 +146,37 @@ func TestReadDeniedLookupFallsBackToKV1(t *testing.T) {
 	}
 }
 
+// TestReadTransientLookupFailureIsNotCached fails the first mount
+// lookup with a 503. That read falls back to KV v1 undetected, but the
+// fallback is not cached, so the next read looks the mount up again,
+// finds KV v2, and reads the secret through data/.
+func TestReadTransientLookupFailureIsNotCached(t *testing.T) {
+	fake := twoMounts(t)
+	fake.FailMountLookups(1)
+	r := newReader(t, fake.URL)
+	// The client retries a 5xx on its own; with retries off, the one
+	// failure reaches the reader.
+	r.Client().SetMaxRetries(0)
+
+	res, err := r.Read(context.Background(), "kv2/app/db")
+	if err != nil || res.Data != nil || res.Detected {
+		t.Fatalf("first read = %v, detected %v, %v; want undetected not found", res.Data, res.Detected, err)
+	}
+
+	res, err = r.Read(context.Background(), "kv2/app/db")
+	if err != nil || res.Data["password"] != "v2-password" || !res.Detected {
+		t.Fatalf("second read = %v, detected %v, %v; want the KV v2 secret", res.Data, res.Detected, err)
+	}
+	if n := fake.MountLookups(); n != 2 {
+		t.Errorf("mount lookups = %d, want 2", n)
+	}
+
+	_, _ = r.Read(context.Background(), "kv2/app/other")
+	if n := fake.MountLookups(); n != 2 {
+		t.Errorf("mount lookups after a detected read = %d, want 2", n)
+	}
+}
+
 // TestReadersKeepSeparateMountCaches reads secret/ on a vault where it
 // is KV v1 and on one where it is KV v2, through two readers, so one
 // reader's cached mount table must never answer for the other.

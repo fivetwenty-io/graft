@@ -11,6 +11,7 @@ package vaultkv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -153,7 +154,10 @@ func (r *Reader) mountFor(ctx context.Context, logical string) (string, mount) {
 		return best, found
 	}
 
-	mountPath, m := r.lookup(ctx, logical)
+	mountPath, m, keep := r.lookup(ctx, logical)
+	if !keep {
+		return mountPath, m
+	}
 
 	r.mu.Lock()
 	r.mounts[mountPath] = m
@@ -166,9 +170,12 @@ func (r *Reader) mountFor(ctx context.Context, logical string) (string, mount) {
 // speaks. Any failure, such as a missing endpoint, a denied request, or
 // an unexpected response, falls back to the path's first segment as an
 // undetected KV v1 mount, which is how the path was read before
-// detection existed. Caching that fallback keeps the failed lookup to
-// once per mount.
-func (r *Reader) lookup(ctx context.Context, logical string) (string, mount) {
+// detection existed. keep reports whether the answer may be cached: a
+// lookup Vault answered, or refused with a 4xx, is kept, so a denied
+// lookup costs one request per mount. A transport error, a 5xx, or a
+// cancelled context is not kept, so a long-lived reader looks the mount
+// up again instead of reading a KV v2 mount as KV v1 for good.
+func (r *Reader) lookup(ctx context.Context, logical string) (string, mount, bool) {
 	fallback := logical + "/"
 	if idx := strings.Index(logical, "/"); idx >= 0 {
 		fallback = logical[:idx+1]
@@ -177,7 +184,7 @@ func (r *Reader) lookup(ctx context.Context, logical string) (string, mount) {
 	info, err := r.client.Logical().ReadWithContext(ctx, mountLookupPrefix+logical)
 	if err != nil || info == nil || info.Data == nil {
 		r.debugf("  mount detection unavailable for `%s' (assuming KV v1): %v", logical, err)
-		return fallback, mount{version: 1}
+		return fallback, mount{version: 1}, err == nil || isDefinite(err)
 	}
 
 	mountPath := fallback
@@ -196,7 +203,18 @@ func (r *Reader) lookup(ctx context.Context, logical string) (string, mount) {
 	}
 
 	r.debugf("  mount `%s' speaks KV v%d", mountPath, version)
-	return mountPath, mount{version: version, detected: true}
+	return mountPath, mount{version: version, detected: true}, true
+}
+
+// isDefinite reports whether err is Vault refusing the lookup with a 4xx,
+// an answer that will not change on retry, rather than a failure to get
+// an answer at all.
+func isDefinite(err error) bool {
+	var respErr *api.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return respErr.StatusCode >= 400 && respErr.StatusCode < 500
 }
 
 // UndetectedClause is the text an *UndetectedError puts ahead of the

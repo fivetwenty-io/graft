@@ -32,6 +32,7 @@ type Fake struct {
 
 	mu            sync.Mutex
 	denyLookups   bool
+	failLookups   int
 	mountLookups  int
 	sysMountsHits int
 	reads         []string
@@ -59,6 +60,15 @@ func (f *Fake) DenyMountLookups() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.denyLookups = true
+}
+
+// FailMountLookups makes the next n sys/internal/ui/mounts/<path>
+// requests answer 503, as a sealed, overloaded, or restarting Vault
+// does, after which lookups answer normally again.
+func (f *Fake) FailMountLookups(n int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failLookups = n
 }
 
 // MountLookups returns how many sys/internal/ui/mounts requests the
@@ -104,7 +114,16 @@ func (f *Fake) serveMountLookup(w http.ResponseWriter, logical string) {
 	f.mu.Lock()
 	f.mountLookups++
 	deny := f.denyLookups
+	fail := f.failLookups > 0
+	if fail {
+		f.failLookups--
+	}
 	f.mu.Unlock()
+
+	if fail {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{keyErrors: []string{"unavailable"}})
+		return
+	}
 
 	if deny {
 		writeJSON(w, http.StatusForbidden, map[string]interface{}{keyErrors: []string{"permission denied"}})
