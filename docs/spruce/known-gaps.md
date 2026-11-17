@@ -61,11 +61,7 @@ The quoted-key differences we have measured are these, with the keys listed in t
 | `"b"`, `"1"`, `"a"`, `2` | `"1" "2" a b` | `2 "1" a b` |
 | `"10"`, `"9"`, `"-5"`, `"-10"`, `".5"`, `"1e3"`, `"999"` | `"-10" "-5" ".5" "9" "10" "999" "1e3"` | `"-5" "-10" ".5" "1e3" "9" "10" "999"` |
 
-**Mitigation:** for a byte-identical result across both tools, quote
-*all* keys of the affected map. That moves every key into spruce's
-string tier and equalizes the decoded key types downstream as well.
-Quoting only the numeric keys is not equivalent — it changes their
-spruce ordering from the numeric tier to the string tier.
+**Mitigation:** quoting every key of the affected map gives byte-identical output from both tools, provided each key is either a plain unsigned integer or a key that starts with a letter. A plain unsigned integer has no sign and no leading zero, such as `"0"`, `"9"`, or `"10"`. Quoting moves every key into spruce's string tier, and it also makes the decoded key types match downstream. When the map holds any other key, such as a negative, decimal, exponent, hex, or zero-padded number, or a key that starts with a symbol, a space, or nothing at all, quoting every key may not be enough, and the table above lists the measured orderings that still differ. Quoting only the numeric keys does not help either, because it moves those keys out of spruce's numeric tier and into its string tier. We measured all of this against spruce 1.35.17.
 
 ### y-n-boolean-values-not-coerced
 
